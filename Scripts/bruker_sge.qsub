@@ -1,0 +1,16 @@
+#$ -S /bin/bash
+#$ -V                        # Export environment variables to the job
+#$ -b y                      # Might be binary job - otherwise script may not be found
+#$ -cwd                      # Execute from current working directory, not home
+set -eux
+
+IMG="$1"
+EXT="$2"
+TGT_DIR="$3"
+
+echo "Converting $IMG"
+nan_bruker $IMG $EXT --prefix="$TGT_DIR"/\
+    --rename="VisuExperimentNumber" \
+    --rename="VisuProcessingNumber" \
+    --rename="VisuAcquisitionProtocol" \
+    --rename="VisuSeriesComment"

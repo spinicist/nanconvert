@@ -1,21 +1,24 @@
 #!/bin/bash -eu
 USAGE="Usage: $0 [options] input_directory output_directory
 
-Converts an entire Bruker dataset into Nifti format by defauly.
-Will generate diffusion .bvec and .bval files for all DTI acquisitions.
+Converts an entire Bruker in parallel using a Sun
+Grid Engine queue system.
 
 Options (must go first):
-    -e EXT : Use a different extension, e.g. .nrrd
-    -l     : Keep localizers
-    -z     : Create zipped (.nii.gz) files
+    -e EXT   : Use a different extension, e.g. .nrrd
+    -l       : Keep localizers
+    -q QUEUE : Use QUEUE
+    -z       : Create .nii.gz files instead of .nii files
 "
 
 LOCALIZERS=""
 EXT=".nii"
-while getopts "elz" opt; do
+QUEUE=""
+while getopts "lqz" opt; do
     case $opt in
         e) EXT="$OPTARG";;
         l) LOCALIZERS="1";;
+        q) QUEUE="-q $OPTARG";;
         z) EXT=".nii.gz";;
     esac
 done
@@ -26,6 +29,8 @@ if [ -z "${1-}" ]; then
 fi
 SRC_DIR="$1"
 TGT_DIR="$2"
+LOG_DIR="$PWD/convert_logs"
+mkdir -p $LOG_DIR
 mkdir -p $TGT_DIR
 
 for IMG in $( ls "$SRC_DIR"/[0-9]*/pdata/*/2dseq | sort -n ); do
@@ -38,12 +43,8 @@ for IMG in $( ls "$SRC_DIR"/[0-9]*/pdata/*/2dseq | sort -n ); do
         if [[ -z "$LOCALIZERS" && $PROTOCOL == *"Localizer"* ]]; then
             echo "$IMG is a localizer, skipping"
         else
-            echo "Converting $IMG"
-            ../build/nan_bruker $IMG $EXT --prefix="$TGT_DIR"/\
-                --rename="VisuExperimentNumber" \
-                --rename="VisuProcessingNumber" \
-                --rename="VisuAcquisitionProtocol" \
-                --rename="VisuSeriesComment"
+            echo "Queueing $IMG"
+            qsub -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE ${SCRIPT} "$IMG $EXT $TGT_DIR"
         fi
     else
         echo "$IMG is empty, skipping."
