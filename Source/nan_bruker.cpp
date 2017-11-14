@@ -10,7 +10,7 @@
  */
 
 #include <iostream>
-#include <algorithm>
+#include <fstream>
 
 #include "itkMetaDataObject.h"
 #include "itkImageFileReader.h"
@@ -93,14 +93,15 @@ void ConvertComponent(const std::string &input, const std::string &output,
         case itk::ImageIOBase::INT:       ConvertPixel<D, int>(input, output, pix); break;
         case itk::ImageIOBase::ULONG:     ConvertPixel<D, unsigned long>(input, output, pix); break;
         case itk::ImageIOBase::LONG:      ConvertPixel<D, long>(input, output, pix); break;
-        // case itk::ImageIOBase::ULONGLONG: ConvertPixel<D, unsigned long long>(input, output, pix); break;
-        // case itk::ImageIOBase::LONGLONG:  ConvertPixel<D, long long>(input, output, pix); break;
+        case itk::ImageIOBase::ULONGLONG: ConvertPixel<D, unsigned long long>(input, output, pix); break;
+        case itk::ImageIOBase::LONGLONG:  ConvertPixel<D, long long>(input, output, pix); break;
         case itk::ImageIOBase::FLOAT:     ConvertPixel<D, float>(input, output, pix); break;
         case itk::ImageIOBase::DOUBLE:    ConvertPixel<D, double>(input, output, pix); break;
+        default: FAIL("Unhandled component type"); break;
     }
 }
 
-void ConvertDims(const std::string &input, const std::string &output, const int D,
+void ConvertFile(const std::string &input, const std::string &output, const int D,
                  const itk::ImageIOBase::IOComponentType &component,
                  const itk::ImageIOBase::IOPixelType &pix)
 {
@@ -157,6 +158,15 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
     return output;
 }
 
+template<typename T>
+T GetParameter(const itk::MetaDataDictionary &dict, const std::string &name) {
+    T value;
+    if (!ExposeMetaData(dict, name, value)) {
+        FAIL("Could not read parameter: " << name);
+    }
+    return value;
+}
+
 int main(int argc, char **argv) {
     ParseArgs(parser, argc, argv);
 
@@ -166,22 +176,42 @@ int main(int argc, char **argv) {
     if (verbose) std::cout << "Reading header information: " << input << std::endl;
     header->SetFileName(input);
     header->ReadImageInformation();
+    auto dict = header->GetMetaDataDictionary();
 
     /* Deal with renaming */
     std::string output_path = prefix.Get();
     if (rename_args) {
-        output_path += RenameFromHeader(header->GetMetaDataDictionary());
+        output_path += RenameFromHeader(dict);
         output_path += GetExt(CheckPos(output_arg));
     } else {
         output_path += CheckPos(output_arg);
     }
-    std::cout << output_path << std::endl;
 
     auto dims = header->GetNumberOfDimensions();
     auto pixel_type = header->GetPixelType();
     auto component_type = header->GetComponentType();
 
-    ConvertDims(input, output_path, dims, component_type, pixel_type);
+    ConvertFile(input, output_path, dims, component_type, pixel_type);
+
+    if (dict.HasKey("PVM_DwEffBval")) {
+        /* It's a diffusion image, write out the b-values and vectors */
+        auto bvals = GetParameter<std::vector<double>>(dict, "PVM_DwEffBval");
+        auto bvecs = GetParameter<std::vector<double>>(dict, "PVM_DwGradVec");
+        auto bvec_scale = GetParameter<std::vector<double>>(dict, "PVM_DwGradAmp");
+
+        std::ofstream bvals_file(StripExt(output_path) + ".bval");
+        for (const auto &bval : bvals) {
+            bvals_file << bval << "\t";
+        }
+
+        std::ofstream bvecs_file(StripExt(output_path) + ".bvec");
+        for (int row = 0; row < 3; ++row) {
+            for (int col = 0; col < bvals.size(); ++col) {
+                bvecs_file << bvecs[col*3 + row] / bvec_scale[0] << "\t";
+            }
+            bvecs_file << "\n";
+        }
+    }
 
     return EXIT_SUCCESS;
 }
