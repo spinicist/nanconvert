@@ -21,16 +21,16 @@ add_custom_command( OUTPUT version_depend_dummy
                     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_MODULE_PATH}/GetVersion.cmake )
 set_source_files_properties( ${CMAKE_CURRENT_BINARY_DIR}/${VERSION_FILE_NAME} PROPERTIES GENERATED TRUE HEADER_FILE_ONLY TRUE )
 
-add_executable( nan_bruker Source/nan_bruker.cpp Source/IO.cpp )
-add_dependencies( nan_bruker nan_version )
-target_link_libraries( nan_bruker ${ITK_LIBRARIES} )
-install( TARGETS nan_bruker RUNTIME DESTINATION bin )
+add_executable( nanconvert_bruker Source/nanconvert_bruker.cpp Source/IO.cpp )
+add_dependencies( nanconvert_bruker nan_version )
+target_link_libraries( nanconvert_bruker ${ITK_LIBRARIES} )
+install( TARGETS nanconvert_bruker RUNTIME DESTINATION bin )
 
-set(SCRIPTS_DIR Scripts)
-set(SCRIPTS bruker_convert.sh)
-foreach(SCRIPT ${SCRIPTS})
+set( SCRIPTS_DIR Scripts )
+set( SCRIPTS nanbruker nanbruker_sge nanbruker_sge.qsub )
+foreach( SCRIPT ${SCRIPTS} )
     INSTALL( FILES ${SCRIPTS_DIR}/${SCRIPT} 
              DESTINATION bin 
              PERMISSIONS OWNER_READ GROUP_READ WORLD_READ
                          OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE )
-endforeach(SCRIPT)
+endforeach( SCRIPT )

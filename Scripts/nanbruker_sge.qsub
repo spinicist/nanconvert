@@ -9,7 +9,7 @@ EXT="$2"
 TGT_DIR="$3"
 
 echo "Converting $IMG"
-nan_bruker $IMG $EXT --prefix="$TGT_DIR"/\
+nanconvert_bruker $IMG $EXT --prefix="$TGT_DIR"/\
     --rename="VisuExperimentNumber" \
     --rename="VisuProcessingNumber" \
     --rename="VisuAcquisitionProtocol" \
