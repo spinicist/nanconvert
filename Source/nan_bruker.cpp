@@ -12,11 +12,13 @@
 #include <iostream>
 #include <fstream>
 
+#include "itkImage.h"
 #include "itkMetaDataObject.h"
-#include "itkImageFileReader.h"
-#include "itkImageFileWriter.h"
+#include "itkImageIOFactory.h"
 #include "Args.h"
 #include "Util.h"
+
+#include "IO.h"
 
 /*
  * Declare args here so things like verbose can be global
@@ -28,89 +30,20 @@ args::Positional<std::string> output_arg(parser, "OUTPUT", "Output file, must in
 
 args::HelpFlag help(parser, "HELP", "Show this help menu", {'h', "help"});
 args::Flag     verbose(parser, "VERBOSE", "Print more information", {'v', "verbose"});
+args::Flag     double_precision(parser, "DOUBLE", "Write out double precision files", {'d', "double"});
 args::ValueFlagList<std::string> rename_args(parser, "RENAME", "Rename using specified header fields (can be multiple).", {'r', "rename"});
-args::ValueFlag<std::string> prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
-
+args::ValueFlag<std::string>     prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
 
 /*
- * Templated helper functions to avoid macros
+ * Helper function to recover a value from an ITK meta-data dictionary
  */
-template<typename TImg>
-auto ReadImage(const std::string &path) -> typename TImg::Pointer {
-    typedef itk::ImageFileReader<TImg> TReader;
-    typename TReader::Pointer file = TReader::New();
-    file->SetFileName(path);
-    file->Update();
-    typename TImg::Pointer img = file->GetOutput();
-    if (!img) {
-        FAIL("Failed to read file: " << path);
+template<typename T>
+T GetParameter(const itk::MetaDataDictionary &dict, const std::string &name) {
+    T value;
+    if (!ExposeMetaData(dict, name, value)) {
+        FAIL("Could not read parameter: " << name);
     }
-    img->DisconnectPipeline();
-    return img;
-}
-
-template<typename TImg>
-void WriteImage(const TImg *ptr, const std::string &path) {
-    typedef itk::ImageFileWriter<TImg> TWriter;
-    typename TWriter::Pointer file = TWriter::New();
-    file->SetFileName(path);
-    file->SetInput(ptr);
-    file->Update();
-}
-
- template<typename TImage>
-void Convert(const std::string &input, const std::string &output) {
-    if (verbose) std::cout << "Reading image: " << input << std::endl;
-    auto image = ReadImage<TImage>(input);
-    if (verbose) std::cout << "Writing image: " << output << std::endl;
-    WriteImage<TImage>(image, output);
-    if (verbose) std::cout << "Finished." << std::endl;
-}
-
-template<int D, typename T>
-void ConvertPixel(const std::string &input, const std::string &output,
-                  const itk::ImageIOBase::IOPixelType &pix)
-{
-    switch (pix) {
-        case itk::ImageIOBase::SCALAR: Convert<itk::Image<T, D>>(input, output); break;
-        case itk::ImageIOBase::COMPLEX: Convert<itk::Image<std::complex<T>, D>>(input, output); break;
-        default: FAIL("Unsupported pixel type in image " << input);
-    }
-}
-
-template<int D>
-void ConvertComponent(const std::string &input, const std::string &output,
-                      const itk::ImageIOBase::IOComponentType &component,
-                      const itk::ImageIOBase::IOPixelType &pix)
-{
-    switch (component) {
-        case itk::ImageIOBase::UNKNOWNCOMPONENTTYPE: FAIL("Unknown component type in image " << input);
-        case itk::ImageIOBase::UCHAR:     ConvertPixel<D, unsigned char>(input, output, pix); break;
-        case itk::ImageIOBase::CHAR:      ConvertPixel<D, char>(input, output, pix); break;
-        case itk::ImageIOBase::USHORT:    ConvertPixel<D, unsigned short>(input, output, pix); break;
-        case itk::ImageIOBase::SHORT:     ConvertPixel<D, short>(input, output, pix); break;
-        case itk::ImageIOBase::UINT:      ConvertPixel<D, unsigned int>(input, output, pix); break;
-        case itk::ImageIOBase::INT:       ConvertPixel<D, int>(input, output, pix); break;
-        case itk::ImageIOBase::ULONG:     ConvertPixel<D, unsigned long>(input, output, pix); break;
-        case itk::ImageIOBase::LONG:      ConvertPixel<D, long>(input, output, pix); break;
-        case itk::ImageIOBase::ULONGLONG: ConvertPixel<D, unsigned long long>(input, output, pix); break;
-        case itk::ImageIOBase::LONGLONG:  ConvertPixel<D, long long>(input, output, pix); break;
-        case itk::ImageIOBase::FLOAT:     ConvertPixel<D, float>(input, output, pix); break;
-        case itk::ImageIOBase::DOUBLE:    ConvertPixel<D, double>(input, output, pix); break;
-        default: FAIL("Unhandled component type"); break;
-    }
-}
-
-void ConvertFile(const std::string &input, const std::string &output, const int D,
-                 const itk::ImageIOBase::IOComponentType &component,
-                 const itk::ImageIOBase::IOPixelType &pix)
-{
-    switch (D) {
-        case 2: ConvertComponent<2>(input, output, component, pix); break;
-        case 3: ConvertComponent<3>(input, output, component, pix); break;
-        case 4: ConvertComponent<4>(input, output, component, pix); break;
-        default: FAIL("Unsupported dimension: " << D);
-    }
+    return value;
 }
 
 /*
@@ -158,13 +91,27 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
     return output;
 }
 
+/*
+ * Templated conversion functions to avoid macros
+ */
+template<typename T, int D>
+void Convert(const std::string &input, const std::string &output) {
+    typedef itk::Image<T, D> TImage;
+    if (verbose) std::cout << "Reading image: " << input << std::endl;
+    auto image = ReadImage<TImage>(input);
+    if (verbose) std::cout << "Writing image: " << output << std::endl;
+    WriteImage<TImage>(image, output);
+    if (verbose) std::cout << "Finished." << std::endl;
+}
+
 template<typename T>
-T GetParameter(const itk::MetaDataDictionary &dict, const std::string &name) {
-    T value;
-    if (!ExposeMetaData(dict, name, value)) {
-        FAIL("Could not read parameter: " << name);
+void ConvertFile(const std::string &input, const std::string &output, const int D) {
+    switch (D) {
+        case 2: Convert<T, 2>(input, output); break;
+        case 3: Convert<T, 3>(input, output); break;
+        case 4: Convert<T, 4>(input, output); break;
+        default: FAIL("Unsupported dimension: " << D);
     }
-    return value;
 }
 
 int main(int argc, char **argv) {
@@ -188,10 +135,13 @@ int main(int argc, char **argv) {
     }
 
     auto dims = header->GetNumberOfDimensions();
-    auto pixel_type = header->GetPixelType();
-    auto component_type = header->GetComponentType();
+    /* We don't need the pixel type because Bruker 'complex' images are real volumes then imaginary volumes */
 
-    ConvertFile(input, output_path, dims, component_type, pixel_type);
+    if (double_precision) {
+        ConvertFile<double>(input, output_path, dims);
+    } else {
+        ConvertFile<float>(input, output_path, dims);
+    }
 
     if (dict.HasKey("PVM_DwEffBval")) {
         /* It's a diffusion image, write out the b-values and vectors */
