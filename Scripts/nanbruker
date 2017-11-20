@@ -27,6 +27,8 @@ while getopts "e:lo:qz" opt; do
         z) EXT=".nii.gz";;
     esac
 done
+LOG_DIR="$OUT_DIR/logs/"
+
 shift  $((OPTIND - 1))
 if [ -z "${1-}" ]; then
     printf "$USAGE"
