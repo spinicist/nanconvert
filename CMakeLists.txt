@@ -36,6 +36,7 @@ set( SCRIPTS nanbruker nanbruker_sge.qsub )
 foreach( SCRIPT ${SCRIPTS} )
     INSTALL( FILES ${SCRIPTS_DIR}/${SCRIPT} 
              DESTINATION bin 
-             PERMISSIONS OWNER_READ GROUP_READ WORLD_READ
-                         OWNER_EXECUTE GROUP_EXECUTE WORLD_EXECUTE )
+             PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                         GROUP_READ GROUP_EXECUTE
+                         WORLD_READ WORLD_EXECUTE )
 endforeach( SCRIPT )
