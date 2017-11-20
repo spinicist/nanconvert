@@ -8,8 +8,8 @@ include( CMakeToolsHelpers OPTIONAL )
 
 find_package( ITK 4.10.0 REQUIRED )
 include( ${ITK_USE_FILE} )
-set( Args_DIR "${PROJECT_SOURCE_DIR}/External/Args"
-     CACHE PATH "Path to Args library (usually External/Args" )
+set( Args_DIR "${PROJECT_SOURCE_DIR}/External/args"
+     CACHE PATH "Path to Args library (usually External/args" )
 set( SRC_DIR "${PROJECT_SOURCE_DIR}/Source" )
 set( CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMake" )
 include_directories( "${SRC_DIR}" "${Args_DIR}" )
@@ -26,8 +26,13 @@ add_dependencies( nanconvert_bruker nan_version )
 target_link_libraries( nanconvert_bruker ${ITK_LIBRARIES} )
 install( TARGETS nanconvert_bruker RUNTIME DESTINATION bin )
 
+add_executable( nanconvert_dicom Source/nanconvert_dicom.cpp Source/IO.cpp )
+add_dependencies( nanconvert_dicom nan_version )
+target_link_libraries( nanconvert_dicom ${ITK_LIBRARIES} )
+install( TARGETS nanconvert_dicom RUNTIME DESTINATION bin )
+
 set( SCRIPTS_DIR Scripts )
-set( SCRIPTS nanbruker nanbruker_sge nanbruker_sge.qsub )
+set( SCRIPTS nanbruker nanbruker_sge.qsub )
 foreach( SCRIPT ${SCRIPTS} )
     INSTALL( FILES ${SCRIPTS_DIR}/${SCRIPT} 
              DESTINATION bin 
