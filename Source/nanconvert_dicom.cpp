@@ -33,7 +33,7 @@ args::Flag     double_precision(parser, "DOUBLE", "Write out double precision fi
 args::ValueFlagList<std::string> rename_args(parser, "RENAME", "Rename using specified header fields (can be multiple).", {'r', "rename"});
 args::ValueFlag<std::string>     prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
 
-int main(int argc, char* argv[]) {
+int main(int argc, char **argv) {
     ParseArgs(parser, argc, argv);
     const std::string input_dir = CheckPos(input_arg);
 
@@ -41,10 +41,8 @@ int main(int argc, char* argv[]) {
     name_generator->SetUseSeriesDetails(true);
     name_generator->SetLoadSequences(true);
     name_generator->SetLoadPrivateTags(true);
-    name_generator->AddSeriesRestriction("0043|102f"); // Maybe magnitude/real/imaginary?
+    name_generator->AddSeriesRestriction("0043|102f"); // Magnitude/real/imaginary?
     // name_generator->AddSeriesRestriction("0018|0086"); // Echo Numbers
-    //name_generator->AddSeriesRestriction("0018|1060");
-    //name_generator->AddSeriesRestriction("0008|0021");
     name_generator->SetGlobalWarningDisplay(false);
     name_generator->SetDirectory(input_dir);
 
