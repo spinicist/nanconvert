@@ -60,7 +60,7 @@ while test ${#} -gt 0; do
                         --rename="VisuSeriesComment"
                 else
                     echo "Submitting $IMG to queue"
-                    qsub -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE $QJOB "$IMG $EXT $TGT_DIR"
+                    qsub -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE nanbruker_sge.qsub "$IMG $EXT $TGT_DIR"
                 fi
             fi
         else
