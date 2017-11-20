@@ -7,9 +7,14 @@ set -eux
 IMG="$1"
 EXT="$2"
 TGT_DIR="$3"
+if [[ -z "${4-}" ]]; then
+    SCALE=""
+else
+    SCALE="$4"
+fi
 
 echo "Converting $IMG"
-nanconvert_bruker $IMG $EXT --prefix="$TGT_DIR"/\
+nanconvert_bruker $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
     --rename="VisuExperimentNumber" \
     --rename="VisuProcessingNumber" \
     --rename="VisuAcquisitionProtocol" \

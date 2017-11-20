@@ -28,6 +28,7 @@ args::Positional<std::string> output_arg(parser, "OUTPUT", "Output file, must in
 args::HelpFlag help(parser, "HELP", "Show this help menu", {'h', "help"});
 args::Flag     verbose(parser, "VERBOSE", "Print more information", {'v', "verbose"});
 args::Flag     double_precision(parser, "DOUBLE", "Write out double precision files", {'d', "double"});
+args::Flag     scale(parser, "SCALE", "Scale image x10 for compatibility with SPM etc.", {'s', "scale"});
 args::ValueFlagList<std::string> rename_args(parser, "RENAME", "Rename using specified header fields (can be multiple).", {'r', "rename"});
 args::ValueFlag<std::string>     prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
 
@@ -96,6 +97,16 @@ void Convert(const std::string &input, const std::string &output) {
     typedef itk::Image<T, D> TImage;
     if (verbose) std::cout << "Reading image: " << input << std::endl;
     auto image = ReadImage<TImage>(input);
+    if (scale) {
+        auto spacing = image->GetSpacing();
+        auto origin  = image->GetOrigin();
+        for (int i = 0; i < D; i++) {
+            spacing[i] *= 10;
+            origin[i]  *= 10;
+        }
+        image->SetSpacing(spacing);
+        image->SetOrigin(origin);
+    }
     if (verbose) std::cout << "Writing image: " << output << std::endl;
     WriteImage<TImage>(image, output);
     if (verbose) std::cout << "Finished." << std::endl;

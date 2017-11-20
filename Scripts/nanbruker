@@ -11,19 +11,22 @@ Options (must go first):
     -l     : Keep localizers
     -o DIR : Write output directories to this directory
     -q     : Submit jobs to queue (Sun Grid Engine)
+    -s     : Scale images by 10 for compatibility with SPM etc.
     -z     : Create zipped (.nii.gz) files
 "
 
 EXT=".nii"
 LOCALIZERS=""
 QUEUE=""
+SCALE=""
 OUT_DIR="$PWD"
-while getopts "e:lo:qz" opt; do
+while getopts "e:lo:qsz" opt; do
     case $opt in
         e) EXT="$OPTARG";;
         l) LOCALIZERS="1";;
         o) OUT_DIR="$OPTARG";;
         q) QUEUE="1";;
+        s) SCALE="--scale";;
         z) EXT=".nii.gz";;
     esac
 done
@@ -53,14 +56,14 @@ while test ${#} -gt 0; do
             else
                 if [[ -z "$QUEUE" ]]; then
                     echo "Converting $IMG"
-                    nanconvert_bruker -v $IMG $EXT --prefix="$TGT_DIR"/\
+                    nanconvert_bruker -v $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
                         --rename="VisuExperimentNumber" \
                         --rename="VisuProcessingNumber" \
                         --rename="VisuAcquisitionProtocol" \
                         --rename="VisuSeriesComment"
                 else
                     echo "Submitting $IMG to queue"
-                    qsub -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE nanbruker_sge.qsub "$IMG $EXT $TGT_DIR"
+                    qsub -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE nanbruker_sge.qsub "$IMG $EXT $TGT_DIR $SCALE"
                 fi
             fi
         else
