@@ -1,5 +1,5 @@
 /*
- *  nan_bruker.cpp
+ *  nanconvert_bruker.cpp
  *
  *  Copyright (c) 2017 Tobias Wood.
  *
@@ -9,15 +9,12 @@
  *
  */
 
-#include <iostream>
-#include <fstream>
-
 #include "itkImage.h"
 #include "itkMetaDataObject.h"
 #include "itkImageIOFactory.h"
+
 #include "Args.h"
 #include "Util.h"
-
 #include "IO.h"
 
 /*

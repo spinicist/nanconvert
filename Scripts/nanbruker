@@ -1,21 +1,29 @@
 #!/bin/bash -eu
-USAGE="Usage: $0 [options] input_directory output_directory
+USAGE="Usage: $0 [options] input_directory [more_input_directories]
 
-Converts an entire Bruker dataset into Nifti format by defauly.
+Converts an entire Bruker dataset.
+Output is Niftt by default.
+Output directories will be created in current directory by default.
 Will generate diffusion .bvec and .bval files for all DTI acquisitions.
 
 Options (must go first):
     -e EXT : Use a different extension, e.g. .nrrd
     -l     : Keep localizers
+    -o DIR : Write output directories to this directory
+    -q     : Submit jobs to queue (Sun Grid Engine)
     -z     : Create zipped (.nii.gz) files
 "
 
-LOCALIZERS=""
 EXT=".nii"
-while getopts "elz" opt; do
+LOCALIZERS=""
+QUEUE=""
+OUT_DIR="$PWD"
+while getopts "e:lo:qz" opt; do
     case $opt in
         e) EXT="$OPTARG";;
         l) LOCALIZERS="1";;
+        o) OUT_DIR="$OPTARG";;
+        q) QUEUE="1";;
         z) EXT=".nii.gz";;
     esac
 done
@@ -24,28 +32,38 @@ if [ -z "${1-}" ]; then
     printf "$USAGE"
     exit 1
 fi
-SRC_DIR="$1"
-TGT_DIR="$2"
-mkdir -p $TGT_DIR
 
-for IMG in $( ls "$SRC_DIR"/[0-9]*/pdata/*/2dseq | sort -n ); do
-    ## Interrupted scans may end up with a 2dseq file with 0 bytes, annoyingly
-    ## Or no visu_pars file
-    IMG_DIR=$( dirname $IMG )
-    VISU_PARS="$IMG_DIR/visu_pars"
-    if [[ -s $IMG && -f $VISU_PARS ]]; then
-        PROTOCOL=$( grep -A1 "\#\#\$VisuAcquisitionProtocol" $VISU_PARS | tail -n1 )
-        if [[ -z "$LOCALIZERS" && $PROTOCOL == *"Localizer"* ]]; then
-            echo "$IMG is a localizer, skipping"
+# Loop over input directories
+while test ${#} -gt 0; do
+    SRC_DIR="$1"
+    TGT_DIR="$OUT_DIR/$( basename $SRC_DIR )"
+    mkdir -p $TGT_DIR
+
+    for IMG in $( ls "$SRC_DIR"/[0-9]*/pdata/*/2dseq | sort -n ); do
+        ## Interrupted scans may end up with a 2dseq file with 0 bytes, annoyingly
+        ## Or no visu_pars file
+        IMG_DIR=$( dirname $IMG )
+        VISU_PARS="$IMG_DIR/visu_pars"
+        if [[ -s $IMG && -f $VISU_PARS ]]; then
+            PROTOCOL=$( grep -A1 "\#\#\$VisuAcquisitionProtocol" $VISU_PARS | tail -n1 )
+            if [[ -z "$LOCALIZERS" && $PROTOCOL == *"Localizer"* ]]; then
+                echo "$IMG is a localizer, skipping"
+            else
+                if [[ -z "$QUEUE" ]]; then
+                    echo "Converting $IMG"
+                    nanconvert_bruker -v $IMG $EXT --prefix="$TGT_DIR"/\
+                        --rename="VisuExperimentNumber" \
+                        --rename="VisuProcessingNumber" \
+                        --rename="VisuAcquisitionProtocol" \
+                        --rename="VisuSeriesComment"
+                else
+                    echo "Submitting $IMG to queue"
+                    qsub -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE $QJOB "$IMG $EXT $TGT_DIR"
+                fi
+            fi
         else
-            echo "Converting $IMG"
-            ../build/nanconvert_bruker $IMG $EXT --prefix="$TGT_DIR"/\
-                --rename="VisuExperimentNumber" \
-                --rename="VisuProcessingNumber" \
-                --rename="VisuAcquisitionProtocol" \
-                --rename="VisuSeriesComment"
+            echo "$IMG is empty, skipping."
         fi
-    else
-        echo "$IMG is empty, skipping."
-    fi
+    done
+    shift # Get next input directory
 done
