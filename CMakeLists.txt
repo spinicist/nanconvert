@@ -27,12 +27,12 @@ add_library( Convert STATIC ${SRC_DIR}/IO.cpp ${SRC_DIR}/Util.cpp )
 
 add_executable( nanconvert_bruker ${SRC_DIR}/nanconvert_bruker.cpp )
 add_dependencies( nanconvert_bruker nan_version )
-target_link_libraries( nanconvert_bruker ${ITK_LIBRARIES} Convert )
+target_link_libraries( nanconvert_bruker Convert ${ITK_LIBRARIES} )
 install( TARGETS nanconvert_bruker RUNTIME DESTINATION bin )
 
 add_executable( nanconvert_dicom ${SRC_DIR}/nanconvert_dicom.cpp )
 add_dependencies( nanconvert_dicom nan_version )
-target_link_libraries( nanconvert_dicom ${ITK_LIBRARIES} Convert )
+target_link_libraries( nanconvert_dicom Convert ${ITK_LIBRARIES} )
 install( TARGETS nanconvert_dicom RUNTIME DESTINATION bin )
 
 set( SCRIPTS_DIR Scripts )
