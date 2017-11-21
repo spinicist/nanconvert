@@ -10,7 +10,7 @@ Options (must go first):
     -e EXT : Use a different extension, e.g. .nrrd
     -l     : Keep localizers
     -o DIR : Write output directories to this directory
-    -q     : Submit jobs to queue (Sun Grid Engine)
+    -q Q   : Submit jobs to the specified SGE queu
     -s     : Scale images by 10 for compatibility with SPM etc.
     -z     : Create zipped (.nii.gz) files
 "
@@ -20,17 +20,20 @@ LOCALIZERS=""
 QUEUE=""
 SCALE=""
 OUT_DIR="$PWD"
-while getopts "e:lo:qsz" opt; do
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while getopts "e:lo:q:sz" opt; do
     case $opt in
         e) EXT="$OPTARG";;
         l) LOCALIZERS="1";;
         o) OUT_DIR="$OPTARG";;
-        q) QUEUE="1";;
+        q) QUEUE="-q $OPTARG"
+           LOG_DIR="$OUT_DIR/nanbruker_logs/"
+           mkdir -p $LOG_DIR
+           ;;
         s) SCALE="--scale";;
         z) EXT=".nii.gz";;
     esac
 done
-LOG_DIR="$OUT_DIR/logs/"
 
 shift  $((OPTIND - 1))
 if [ -z "${1-}" ]; then
@@ -63,7 +66,7 @@ while test ${#} -gt 0; do
                         --rename="VisuSeriesComment"
                 else
                     echo "Submitting $IMG to queue"
-                    qsub -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE nanbruker_sge.qsub "$IMG $EXT $TGT_DIR $SCALE"
+                    qsub -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE $SCRIPT_DIR/nanbruker_sge.qsub "$IMG $EXT $TGT_DIR $SCALE"
                 fi
             fi
         else

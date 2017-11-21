@@ -2,7 +2,7 @@
 #$ -V                        # Export environment variables to the job
 #$ -b y                      # Might be binary job - otherwise script may not be found
 #$ -cwd                      # Execute from current working directory, not home
-set -eux
+set -eu
 
 IMG="$1"
 EXT="$2"
@@ -14,8 +14,9 @@ else
 fi
 
 echo "Converting $IMG"
-nanconvert_bruker $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
+nanconvert_bruker -v $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
     --rename="VisuExperimentNumber" \
     --rename="VisuProcessingNumber" \
     --rename="VisuAcquisitionProtocol" \
     --rename="VisuSeriesComment"
+echo "Finished queue job"
