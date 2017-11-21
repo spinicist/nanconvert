@@ -4,7 +4,7 @@
 #$ -cwd                      # Execute from current working directory, not home
 set -eu
 
-IMG="$1"
+INDEX_FILE="$1"
 EXT="$2"
 TGT_DIR="$3"
 if [[ -z "${4-}" ]]; then
@@ -13,6 +13,20 @@ else
     SCALE="$4"
 fi
 
+if [ -n "${SGE_TASK_ID-}" ]; then
+    if [ $SGE_TASK_ID == 'undefined' ]; then
+        ## SGE, in its glorious wisdom, sets the above value when NOT an arrayed task
+        exit 1
+    else
+        ## This has been submitted as an array task to SGE
+        ## $1 contains a list of directories indexed by TASK_ID
+        ## Search the file for the SGE_TASK_ID number as a line number
+        IMG=$( awk "FNR==$SGE_TASK_ID" $1 )
+    fi
+elif [ -n "${1-}" ]; then
+    ## Not an SGE job, this just tells us which directory to process
+    exit 1
+fi
 echo "Converting $IMG"
 nanconvert_bruker -v $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
     --rename="VisuExperimentNumber" \
