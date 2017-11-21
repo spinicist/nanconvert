@@ -1,4 +1,4 @@
-# Not Aother Neuroimaging Converter - nanconvert #
+# Not Another Neuroimaging Converter - nanconvert #
 
 # Brief Description #
 

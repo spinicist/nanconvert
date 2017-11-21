@@ -62,6 +62,7 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
     bool append_delim = false;
     std::string output;
     for (const auto rename_field: args::get(rename_args)) {
+        std::vector<std::vector<std::string>> string_array_array_value;
         std::vector<std::string> string_array_value;
         std::vector<double> double_array_value;
         std::string string_value;
@@ -75,7 +76,9 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
         } else {
             append_delim = true;
         }
-        if (ExposeMetaData(header, rename_field, string_array_value)) {
+        if (ExposeMetaData(header, rename_field, string_array_array_value)) {
+            output.append(SanitiseString(string_array_array_value[0][0]));
+        } else if (ExposeMetaData(header, rename_field, string_array_value)) {
             output.append(SanitiseString(string_array_value[0]));
         } else if (ExposeMetaData(header, rename_field, string_value)) {
             output.append(SanitiseString(string_value));
