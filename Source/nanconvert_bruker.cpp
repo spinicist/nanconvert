@@ -63,6 +63,7 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
     std::string output;
     for (const auto rename_field: args::get(rename_args)) {
         std::vector<std::string> string_array_value;
+        std::vector<double> double_array_value;
         std::string string_value;
         double double_value;
         if (!header.HasKey(rename_field)) {
@@ -78,12 +79,16 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
             output.append(SanitiseString(string_array_value[0]));
         } else if (ExposeMetaData(header, rename_field, string_value)) {
             output.append(SanitiseString(string_value));
+        } else if (ExposeMetaData(header, rename_field, double_array_value)) {
+            std::ostringstream formatted;
+            formatted << double_array_value;
+            output.append(SanitiseString(formatted.str()));
         } else if (ExposeMetaData(header, rename_field, double_value)) {
             std::ostringstream formatted;
             formatted << double_value;
-            output.append(formatted.str());
+            output.append(SanitiseString(formatted.str()));
         } else {
-            FAIL("Could not determine type of rename header field:" << rename_field);
+            if (verbose) std::cout << "Could not determine type of rename header field, ignoring:" << rename_field << std::endl;
         }
     }
     return output;
@@ -141,7 +146,7 @@ int main(int argc, char **argv) {
     } else {
         output_path += CheckPos(output_arg);
     }
-
+    
     auto dims = header->GetNumberOfDimensions();
     /* We don't need the pixel type because Bruker 'complex' images are real volumes then imaginary volumes */
 
