@@ -1,0 +1,46 @@
+language:
+  - cpp
+
+notifications:
+  email:
+    on_success: never
+    on_fail: always
+
+matrix:
+  include:
+    # works on Precise and Trusty
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-4.9
+      env:
+         - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9"
+    # works on Precise and Trusty
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-5
+      env:
+         - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
+    - os: osx
+      osx_image: xcode8
+
+before_install:
+  - git submodule update --init
+
+script:
+  - WD="$PWD"
+  - ITK_BLD_DIR="$WD/External/ITK/build"
+  - mkdir -p $ITK_BLD_DIR && cd $ITK_BLD_DIR && pwd
+  - cmake .. -DCMAKE_CXX_FLAGS="-std=c++11" -DBUILD_TESTING=OFF -DITK_BUILD_DEFAULT_MODULES=OFF -DModule_ITKIOBruker=ON
+  - make -j 2
+  - cd $WD && mkdir build && cd build
+  - cmake -DITK_DIR=$ITK_BLD_DIR $WD/
+  - make nanconvert_version # For some unknown reason, this does not trigger in the Linux build
+  - make -j 2
