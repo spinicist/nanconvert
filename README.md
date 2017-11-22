@@ -1,5 +1,7 @@
 # Not Another Neuroimaging Converter - nanconvert #
 
+[![Build Status](https://travis-ci.org/spinicist/nanconvert.svg?branch=master)](https://travis-ci.org/spinicist/nanconvert)
+
 # Brief Description #
 
 A set of command-line tools for converting between neuroimaging data formats,
