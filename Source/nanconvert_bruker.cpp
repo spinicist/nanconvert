@@ -9,6 +9,8 @@
  *
  */
 
+#include <iomanip>
+
 #include "itkImage.h"
 #include "itkMetaDataObject.h"
 #include "itkImageIOFactory.h"
@@ -163,7 +165,8 @@ int main(int argc, char **argv) {
         /* It's a diffusion image, write out the b-values and vectors */
         auto bvals = GetParameter<std::vector<double>>(dict, "PVM_DwEffBval");
         auto bvecs = GetParameter<std::vector<double>>(dict, "PVM_DwGradVec");
-        auto bvec_scale = GetParameter<std::vector<double>>(dict, "PVM_DwGradAmp");
+        // GradAmp is stored in percent - convert to fraction
+        auto bvec_scale = GetParameter<std::vector<double>>(dict, "PVM_DwGradAmp")[0] / 100.;
 
         std::ofstream bvals_file(StripExt(output_path) + ".bval");
         for (const auto &bval : bvals) {
@@ -171,9 +174,10 @@ int main(int argc, char **argv) {
         }
 
         std::ofstream bvecs_file(StripExt(output_path) + ".bvec");
+        bvecs_file << std::setprecision(std::numeric_limits<double>::digits10 + 1);
         for (int row = 0; row < 3; ++row) {
             for (int col = 0; col < bvals.size(); ++col) {
-                bvecs_file << bvecs[col*3 + row] / bvec_scale[0] << "\t";
+                bvecs_file << bvecs[col*3 + row] / bvec_scale << "\t";
             }
             bvecs_file << "\n";
         }
