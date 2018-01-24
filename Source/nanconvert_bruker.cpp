@@ -35,18 +35,6 @@ args::ValueFlagList<std::string> rename_args(parser, "RENAME", "Rename using spe
 args::ValueFlag<std::string>     prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
 
 /*
- * Helper function to recover a value from an ITK meta-data dictionary
- */
-template<typename T>
-T GetParameter(const itk::MetaDataDictionary &dict, const std::string &name) {
-    T value;
-    if (!ExposeMetaData(dict, name, value)) {
-        FAIL("Could not read parameter: " << name);
-    }
-    return value;
-}
-
-/*
  * Helper function to sanitise meta-data to be suitable for a filename
  */
 std::string SanitiseString(const std::string &s) {
@@ -163,10 +151,10 @@ int main(int argc, char **argv) {
 
     if (dict.HasKey("PVM_DwEffBval")) {
         /* It's a diffusion image, write out the b-values and vectors */
-        auto bvals = GetParameter<std::vector<double>>(dict, "PVM_DwEffBval");
-        auto bvecs = GetParameter<std::vector<double>>(dict, "PVM_DwGradVec");
+        auto bvals = GetMetaData<std::vector<double>>(dict, "PVM_DwEffBval");
+        auto bvecs = GetMetaData<std::vector<double>>(dict, "PVM_DwGradVec");
         // GradAmp is stored in percent - convert to fraction
-        auto bvec_scale = GetParameter<std::vector<double>>(dict, "PVM_DwGradAmp")[0] / 100.;
+        auto bvec_scale = GetMetaData<std::vector<double>>(dict, "PVM_DwGradAmp")[0] / 100.;
 
         std::ofstream bvals_file(StripExt(output_path) + ".bval");
         for (const auto &bval : bvals) {

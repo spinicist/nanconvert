@@ -15,6 +15,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include "itkMetaDataObject.h"
 
 const std::string &GetVersion();                    //!< Return the version of the QI library
 const std::string &OutExt();                        //!< Return the extension stored in $QUIT_EXT
@@ -37,6 +38,19 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec) {
     }
     os << ")";
     return os;
+}
+
+/*
+ * Helper function to recover a value from an ITK meta-data dictionary
+ */
+template<typename T>
+T GetMetaData(const itk::MetaDataDictionary &dict, const std::string &name) {
+    T value;
+    if (!ExposeMetaData(dict, name, value)) {
+        std::cerr << "Could not read parameter: " << name << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    return value;
 }
 
 #endif // UTIL_H
