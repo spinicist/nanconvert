@@ -9,6 +9,7 @@ Will generate diffusion .bvec and .bval files for all DTI acquisitions.
 Options (must go first):
     -e EXT : Use a different extension, e.g. .nrrd
     -l     : Keep localizers
+    -p P   : Convert only the sequences that match pattern P
     -o DIR : Write output directories to this directory
     -q Q   : Submit jobs to the specified SGE queu
     -s     : Scale images by 10 for compatibility with SPM etc.
@@ -18,19 +19,23 @@ Options (must go first):
 EXT=".nii"
 LOCALIZERS=""
 QUEUE=""
+PATTERN="[0-9]*"
 SCALE=""
 OUT_DIR="$PWD"
+VERBOSE=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-while getopts "e:lo:q:sz" opt; do
+while getopts "e:lo:p:q:sz" opt; do
     case $opt in
         e) EXT="$OPTARG";;
         l) LOCALIZERS="1";;
         o) OUT_DIR="$OPTARG";;
+        p) PATTERN="$OPTARG";;
         q) QUEUE="-q $OPTARG"
            LOG_DIR="$OUT_DIR/nanbruker_logs/"
            mkdir -p $LOG_DIR
            ;;
         s) SCALE="--scale";;
+        v) VERBOSE="-v";;
         z) EXT=".nii.gz";;
     esac
 done
@@ -53,8 +58,9 @@ while test ${#} -gt 0; do
         > $INDEX_FILE
     fi
     echo "Converting study $BASE_DIR"
-
-    for IMG in $( ls "$SRC_DIR"/[0-9]*/pdata/*/2dseq | sort -n ); do
+    IMGS=$( ls "$SRC_DIR"/$PATTERN/pdata/*/2dseq | sort -n )
+    echo "Found" $( wc -w <<< $IMGS ) "images to convert"
+    for IMG in $IMGS; do
         ## Interrupted scans may end up with a 2dseq file with 0 bytes, annoyingly
         ## Or no visu_pars file
         IMG_DIR=$( dirname $IMG )
@@ -68,7 +74,7 @@ while test ${#} -gt 0; do
             else
                 if [[ -z "$QUEUE" ]]; then
                     echo "Converting $IMG"
-                    nanconvert_bruker -v $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
+                    nanconvert_bruker $VERBOSE $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
                         --rename="VisuExperimentNumber" \
                         --rename="VisuProcessingNumber" \
                         --rename="VisuAcquisitionProtocol" \
