@@ -4,3 +4,6 @@
 [submodule "External/ITK"]
 	path = External/ITK
 	url = https://github.com/spinicist/ITK
+[submodule "External/fmt"]
+	path = External/fmt
+	url = https://github.com/fmtlib/fmt.git
