@@ -22,6 +22,7 @@ const std::string &OutExt();                        //!< Return the extension st
 std::string StripExt(const std::string &filename);  //!< Remove the extension from a filename
 std::string GetExt(const std::string &filename);    //!< Return the extension from a filename (including .)
 std::string Basename(const std::string &path);      //!< Return only the filename part of a path
+std::string SanitiseString(const std::string &s);   //!< Remove undesirable characters from a filename
 
 /*
  * Print a std::vector

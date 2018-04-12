@@ -52,3 +52,14 @@ std::string Basename(const std::string &path) {
         return StripExt(path);
     }
 }
+
+/*
+ * Helper function to sanitise meta-data to be suitable for a filename
+ */
+std::string SanitiseString(const std::string &s) {
+    const std::string forbidden = " \\/:?\"<>|*+-=";
+    std::string out(s.size(), ' ');
+    std::transform(s.begin(), s.end(), out.begin(),
+                   [&forbidden](char c) { return forbidden.find(c) != std::string::npos ? '_' : c; });
+    return out;
+}

@@ -35,17 +35,6 @@ args::ValueFlagList<std::string> rename_args(parser, "RENAME", "Rename using spe
 args::ValueFlag<std::string>     prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
 
 /*
- * Helper function to sanitise meta-data to be suitable for a filename
- */
-std::string SanitiseString(const std::string &s) {
-    const std::string forbidden = " \\/:?\"<>|*+-=";
-    std::string out(s.size(), ' ');
-    std::transform(s.begin(), s.end(), out.begin(),
-                   [&forbidden](char c) { return forbidden.find(c) != std::string::npos ? '_' : c; });
-    return out;
-}
-
-/*
  * Helper function to work out the name of the output file
  */
 std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
