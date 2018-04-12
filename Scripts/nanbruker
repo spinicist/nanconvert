@@ -2,7 +2,7 @@
 USAGE="Usage: $0 [options] input_directory [more_input_directories]
 
 Converts an entire Bruker dataset.
-Output is Niftt by default.
+Output is Nifti by default.
 Output directories will be created in current directory by default.
 Will generate diffusion .bvec and .bval files for all DTI acquisitions.
 
@@ -13,6 +13,7 @@ Options (must go first):
     -o DIR : Write output directories to this directory
     -q Q   : Submit jobs to the specified SGE queu
     -s     : Scale images by 10 for compatibility with SPM etc.
+    -v     : More verbose output.
     -z     : Create zipped (.nii.gz) files
 "
 
@@ -24,7 +25,7 @@ SCALE=""
 OUT_DIR="$PWD"
 VERBOSE=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-while getopts "e:lo:p:q:sz" opt; do
+while getopts "e:lo:p:q:svz" opt; do
     case $opt in
         e) EXT="$OPTARG";;
         l) LOCALIZERS="1";;

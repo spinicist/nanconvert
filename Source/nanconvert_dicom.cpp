@@ -59,17 +59,19 @@ int main(int argc, char **argv) {
         std::vector<std::string>::const_iterator series_it = seriesUID.begin();
 
         if (series_it != seriesUID.end()) {
-            std::cout << "The directory: ";
-            std::cout << input_dir << std::endl;
-            std::cout << "Contains the following DICOM Series: ";
-            std::cout << std::endl;
+            if (verbose) {
+                std::cout << "The directory: ";
+                std::cout << input_dir << std::endl;
+                std::cout << "Contains the following DICOM Series: ";
+                std::cout << std::endl;
+            }
         } else {
             std::cout << "No DICOMs in: " << input_dir << std::endl;
             return EXIT_SUCCESS;
         }
 
         while (series_it != seriesUID.end()) {
-            std::cout  << *series_it << std::endl;
+            if (verbose) std::cout  << *series_it << std::endl;
             ++series_it;
         }
 
@@ -77,7 +79,7 @@ int main(int argc, char **argv) {
         while (series_it != seriesUID.end()) {
             std::string seriesIdentifier = *series_it;
             ++series_it;
-            std::cout << "\nReading: " << seriesIdentifier << std::endl;
+            if (verbose) std::cout << "Reading: " << seriesIdentifier << std::endl;
             std::vector<std::string> fileNames = name_generator->GetFileNames(seriesIdentifier);
 
             // std::cout << "DICOM names:\n";
@@ -94,11 +96,11 @@ int main(int argc, char **argv) {
              * So break them up along Z and stitch them back together in T
              */
             auto meta = dicomIO->GetMetaDataDictionary();
-            const int n_slices = std::stoi(GetMetaData<std::string>(meta, "0021|104f")); // LocationsInAcquisition
+            const int n_slices = meta.HasKey("0021|104f") ? std::stoi(GetMetaData<std::string>(meta, "0021|104f")) : 1; // LocationsInAcquisition
             auto stacked = reader->GetOutput();
             const int stacked_size = stacked->GetLargestPossibleRegion().GetSize()[2];
             const int n_vols = stacked_size / n_slices;
-            std::cout << "Header slices: " << n_slices << " Stacked Slices: " << stacked_size << " Volumes: " << n_vols << std::endl;
+            if (verbose) std::cout << "Header slices: " << n_slices << " Stacked Slices: " << stacked_size << " Volumes: " << n_vols << std::endl;
             itk::FixedArray<unsigned int, 4> layout;
             layout[0] = layout[1] = layout[2] = 1;
             layout[3] = n_vols;
@@ -114,34 +116,34 @@ int main(int argc, char **argv) {
                 tiler->SetInput(i, one_vol->GetOutput());
                 roi.GetModifiableIndex()[2] += n_slices;
             }
-            std::cout << "Unstacking" << std::endl;
+            if (verbose) std::cout << "Unstacking" << std::endl;
             tiler->Update();
             const auto series_number      = std::stoi(GetMetaData<std::string>(meta, "0020|0011"));
             const auto series_description = GetMetaData<std::string>(meta, "0008|103e");
-            const auto data_type_int = std::stoi(GetMetaData<std::string>(meta, "0043|102f"));
+            const auto data_type_int = meta.HasKey("0043|102f") ? std::stoi(GetMetaData<std::string>(meta, "0043|102f")) : 0;
             std::string data_type_string;
             switch (data_type_int) {
                 case 0: data_type_string = ""; break;
-                case 1: data_type_string = "_phase"; break;
-                case 2: data_type_string = "_real"; break;
-                case 3: data_type_string = "_imag"; break;
+                case 1: data_type_string = "phase_"; break;
+                case 2: data_type_string = "real_"; break;
+                case 3: data_type_string = "imag_"; break;
                 default: FAIL("Unknown data-type: " << data_type_int);
             }
-            const auto echo_time = std::stoi(GetMetaData<std::string>(meta, "0018|0086"));
-            const auto filename = fmt::format("{:04d}_{}{}_{:02d}{}",
+            const auto echo_number = meta.HasKey("0018|0086") ? std::stoi(GetMetaData<std::string>(meta, "0018|0086")) : 1;
+            const auto filename = fmt::format("{:04d}_{}{}{:02d}{}",
                                                 series_number,
                                                 SanitiseString(series_description.substr(0, series_description.size()-1)),
                                                 data_type_string,
-                                                echo_time,
+                                                echo_number,
                                                 extension);
             auto writer = itk::ImageFileWriter<itk::Image<float, 4>>::New();
             writer->SetFileName(filename);
             writer->SetInput(tiler->GetOutput());
-            std::cout << "Writing: " << filename << std::endl;
+            if (verbose) std::cout << "Writing: " << filename << std::endl;
             writer->Update();
         }
     } catch (itk::ExceptionObject &ex) {
-        std::cout << ex << std::endl;
+        std::cerr << ex << std::endl;
         return EXIT_FAILURE;
     }
   return EXIT_SUCCESS;

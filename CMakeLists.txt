@@ -37,7 +37,7 @@ target_link_libraries( nanconvert_dicom Convert ${ITK_LIBRARIES} )
 install( TARGETS nanconvert_dicom RUNTIME DESTINATION bin )
 
 set( SCRIPTS_DIR Scripts )
-set( SCRIPTS nanbruker nanbruker_sge.qsub )
+set( SCRIPTS nanbruker nanbruker_sge.qsub nandicom )
 foreach( SCRIPT ${SCRIPTS} )
     INSTALL( FILES ${SCRIPTS_DIR}/${SCRIPT} 
              DESTINATION bin 
