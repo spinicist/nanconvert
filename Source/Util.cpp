@@ -53,13 +53,26 @@ std::string Basename(const std::string &path) {
     }
 }
 
+std::string Trim(const std::string &s) {
+    size_t f = s.find_first_not_of(' ');
+    size_t l = s.find_last_not_of(' ');
+    const std::string o = s.substr(f, (l - f + 1));
+    return o;
+}
+
 /*
  * Helper function to sanitise meta-data to be suitable for a filename
  */
 std::string SanitiseString(const std::string &s) {
-    const std::string forbidden = " \\/:?\"<>|*+-=";
-    std::string out(s.size(), ' ');
-    std::transform(s.begin(), s.end(), out.begin(),
-                   [&forbidden](char c) { return forbidden.find(c) != std::string::npos ? '_' : c; });
+    const std::string forbidden = "\\/:?\"<>|*+-=.";
+    std::string temp(s.size(), ' ');
+    // First, transform all forbidden characters into one forbidden character
+    std::transform(s.begin(), s.end(), temp.begin(),
+                   [&forbidden](char c) { return forbidden.find(c) != std::string::npos ? '?' : c; });
+    // Now remove all occurrences of that string
+    temp.erase(std::remove(temp.begin(), temp.end(), '?'), temp.end());
+    // Now transform all spaces to underscores
+    std::string out(temp.size(), ' ');
+    std::transform(temp.begin(), temp.end(), out.begin(), [](char c){ return c == ' ' ? '_' : c; });
     return out;
 }

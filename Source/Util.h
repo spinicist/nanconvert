@@ -22,6 +22,7 @@ const std::string &OutExt();                        //!< Return the extension st
 std::string StripExt(const std::string &filename);  //!< Remove the extension from a filename
 std::string GetExt(const std::string &filename);    //!< Return the extension from a filename (including .)
 std::string Basename(const std::string &path);      //!< Return only the filename part of a path
+std::string Trim(const std::string &s);             //!< Remove leading and trailing whitespace
 std::string SanitiseString(const std::string &s);   //!< Remove undesirable characters from a filename
 
 /*
@@ -52,6 +53,19 @@ T GetMetaData(const itk::MetaDataDictionary &dict, const std::string &name) {
         exit(EXIT_FAILURE);
     }
     return value;
+}
+
+/*
+ * Version with a default for when a value is required
+ */
+template<typename T>
+T GetMetaData(const itk::MetaDataDictionary &dict, const std::string &name, const T& def) {
+    T value;
+    if (!ExposeMetaData(dict, name, value)) {
+        return def;
+    } else {
+        return value;
+    }
 }
 
 #endif // UTIL_H

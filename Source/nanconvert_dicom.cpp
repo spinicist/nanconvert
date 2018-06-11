@@ -96,10 +96,10 @@ int main(int argc, char **argv) {
              * So break them up along Z and stitch them back together in T
              */
             auto meta = dicomIO->GetMetaDataDictionary();
-            const int n_slices = meta.HasKey("0021|104f") ? std::stoi(GetMetaData<std::string>(meta, "0021|104f")) : 1; // LocationsInAcquisition
+            const int n_slices = std::stoi(GetMetaData<std::string>(meta, "0021|104f", "1")); // LocationsInAcquisition
             auto stacked = reader->GetOutput();
             const int stacked_size = stacked->GetLargestPossibleRegion().GetSize()[2];
-            const int n_vols = stacked_size / n_slices;
+            const int n_vols = (stacked_size < n_slices) ? 1 : stacked_size / n_slices; // RUFIS data has funny LocationsInAcquisition value
             if (verbose) std::cout << "Header slices: " << n_slices << " Stacked Slices: " << stacked_size << " Volumes: " << n_vols << std::endl;
             itk::FixedArray<unsigned int, 4> layout;
             layout[0] = layout[1] = layout[2] = 1;
@@ -107,7 +107,8 @@ int main(int argc, char **argv) {
             auto tiler = itk::TileImageFilter<VolumeF, SeriesF>::New();
             tiler->SetLayout(layout);
             auto roi = stacked->GetLargestPossibleRegion();
-            roi.GetModifiableSize()[2] = n_slices;
+            if (n_vols > 1)
+                roi.GetModifiableSize()[2] = n_slices;
             for (int i = 0; i < n_vols; i ++) {
                 auto one_vol = itk::RegionOfInterestImageFilter<VolumeF, VolumeF>::New();
                 one_vol->SetRegionOfInterest(roi);
@@ -118,9 +119,26 @@ int main(int argc, char **argv) {
             }
             if (verbose) std::cout << "Unstacking" << std::endl;
             tiler->Update();
+            auto out_image = tiler->GetOutput();
+            // Fix header information
+            auto spacing   = out_image->GetSpacing();
+            auto origin    = out_image->GetOrigin();
+            auto direction = out_image->GetDirection();
+            direction.SetIdentity();
+            for (size_t i = 0; i < 3; i++) {
+                spacing[i] = stacked->GetSpacing()[i];
+                origin[i] =  stacked->GetOrigin()[i];
+                for (size_t j = 0; j < 3; j++) {
+                    direction[i][j] = stacked->GetDirection()[i][j];
+                }
+            }
+            //spacing[3] = std::stod(GetMetaData<std::string>(meta, "0018|0080")); // Repetition Time - currently ITK doesn't respect this
+            out_image->SetSpacing(spacing);
+            out_image->SetOrigin(origin);
+            out_image->SetDirection(direction);
             const auto series_number      = std::stoi(GetMetaData<std::string>(meta, "0020|0011"));
-            const auto series_description = GetMetaData<std::string>(meta, "0008|103e");
-            const auto data_type_int = meta.HasKey("0043|102f") ? std::stoi(GetMetaData<std::string>(meta, "0043|102f")) : 0;
+            const auto series_description = SanitiseString(Trim(GetMetaData<std::string>(meta, "0008|103e")));
+            const auto data_type_int = std::stoi(GetMetaData<std::string>(meta, "0043|102f", "0"));
             std::string data_type_string;
             switch (data_type_int) {
                 case 0: data_type_string = ""; break;
@@ -129,16 +147,16 @@ int main(int argc, char **argv) {
                 case 3: data_type_string = "imag_"; break;
                 default: FAIL("Unknown data-type: " << data_type_int);
             }
-            const auto echo_number = meta.HasKey("0018|0086") ? std::stoi(GetMetaData<std::string>(meta, "0018|0086")) : 1;
-            const auto filename = fmt::format("{:04d}_{}{}{:02d}{}",
+            const auto echo_number = std::stoi(GetMetaData<std::string>(meta, "0018|0086", "1"));
+            const auto filename = fmt::format("{:04d}_{}_{}{:02d}{}",
                                                 series_number,
-                                                SanitiseString(series_description.substr(0, series_description.size()-1)),
+                                                series_description,
                                                 data_type_string,
                                                 echo_number,
                                                 extension);
             auto writer = itk::ImageFileWriter<itk::Image<float, 4>>::New();
             writer->SetFileName(filename);
-            writer->SetInput(tiler->GetOutput());
+            writer->SetInput(out_image);
             if (verbose) std::cout << "Writing: " << filename << std::endl;
             writer->Update();
         }

@@ -8,19 +8,21 @@ Output directories will be created in current directory by default.
 Options (must go first):
     -e EXT : Use a different extension, e.g. .nrrd
     -o DIR : Write output directories to this directory
-    -z     : Create zipped (.nii.gz) files
+    -s SER : Only convert specified series
+    -v     : Enable verbose mode
 "
 
-EXT=".nii"
+EXT=".nii.gz"
+SERIES=""
 OUT_DIR="$PWD"
 VERBOSE=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-while getopts "e:o:vz" opt; do
+while getopts "e:o:s:vz" opt; do
     case $opt in
         e) EXT="$OPTARG";;
         o) OUT_DIR="$OPTARG";;
+        s) SERIES="$OPTARG";;
         v) VERBOSE="-v";;
-        z) EXT=".nii.gz";;
     esac
 done
 
@@ -38,13 +40,17 @@ while test ${#} -gt 0; do
     mkdir -p $TGT_DIR
     cd $TGT_DIR
     echo "Converting study $BASE_DIR"
-    IMGS=$( ls -1 "$SRC_DIR"/*tar.bz2 | sort -n )
-    echo "Found" $( wc -w <<< $IMGS ) "images to convert"
+    if [ -z "${SERIES}" ]; then
+        IMGS=$( ls -1 "${SRC_DIR}"/*.tar.bz2 | sort -n )
+        echo "Found" $( wc -w <<< $IMGS ) "images to convert"
+    else
+        IMGS=$( ls -1 "${SRC_DIR}"/${BASE_DIR}.${SERIES}.tar.bz2 )
+    fi
     for IMG in $IMGS; do
         STEM=$( basename $IMG .tar.bz2 )
         echo "Converting $STEM"
         cp $SRC_DIR/$STEM.tar.bz2 $STEM.tar.bz2
-        bunzip2 $STEM.tar.bz2
+        bunzip2 --force $STEM.tar.bz2
         tar -xf $STEM.tar
         DICOMDIR="${STEM##*.}"
         nanconvert_dicom $DICOMDIR $EXT $VERBOSE
