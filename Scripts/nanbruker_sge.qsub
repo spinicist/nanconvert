@@ -4,14 +4,17 @@
 #$ -cwd                      # Execute from current working directory, not home
 set -eu
 
+while getopts "ms" opt; do
+    case $opt in
+        m) METHOD="-m";;
+        s) SCALE="-s";;
+    esac
+done
+shift  $((OPTIND - 1))
+
 INDEX_FILE="$1"
 EXT="$2"
 TGT_DIR="$3"
-if [[ -z "${4-}" ]]; then
-    SCALE=""
-else
-    SCALE="$4"
-fi
 
 if [ -n "${SGE_TASK_ID-}" ]; then
     if [ $SGE_TASK_ID == 'undefined' ]; then
@@ -28,9 +31,16 @@ elif [ -n "${1-}" ]; then
     exit 1
 fi
 echo "Converting $IMG"
-nanconvert_bruker -v $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
-    --rename="VisuExperimentNumber" \
-    --rename="VisuProcessingNumber" \
-    --rename="VisuAcquisitionProtocol" \
-    --rename="VisuSeriesComment"
+RENAME=$( nanconvert_bruker $VERBOSE $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
+            --rename="VisuExperimentNumber" \
+            --rename="VisuProcessingNumber" \
+            --rename="VisuAcquisitionProtocol" \
+            --rename="VisuSeriesComment" )
+if [[ -n "$METHOD" ]]; then
+    echo "Copying method file"
+    METHOD_SRC="$IMG_DIR/../../method"
+    METHOD_DST="$TGT_DIR/$RENAME.method"
+    cp $METHOD_SRC $METHOD_DST
+    chmod ugo+r-x $METHOD_DST
+fi
 echo "Finished queue job"

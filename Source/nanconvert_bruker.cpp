@@ -47,7 +47,7 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
         std::string string_value;
         double double_value;
         if (!header.HasKey(rename_field)) {
-            if (verbose) std::cout << "Rename field '" << rename_field << "' not found in header. Ignoring" << std::endl;
+            if (verbose) std::cerr << "Rename field '" << rename_field << "' not found in header. Ignoring" << std::endl;
             continue;
         }
         if (append_delim) {
@@ -70,9 +70,11 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
             formatted << double_value;
             output.append(SanitiseString(formatted.str()));
         } else {
-            if (verbose) std::cout << "Could not determine type of rename header field, ignoring:" << rename_field << std::endl;
+            if (verbose) std::cerr << "Could not determine type of rename header field, ignoring:" << rename_field << std::endl;
         }
     }
+    // Write output name to stdout so outer script can pick it up for method file
+    std::cout << output << std::endl;
     return output;
 }
 
@@ -82,7 +84,7 @@ std::string RenameFromHeader(const itk::MetaDataDictionary &header) {
 template<typename T, int D>
 void Convert(const std::string &input, const std::string &output) {
     typedef itk::Image<T, D> TImage;
-    if (verbose) std::cout << "Reading image: " << input << std::endl;
+    if (verbose) std::cerr << "Reading image: " << input << std::endl;
     auto image = ReadImage<TImage>(input);
     if (scale) {
         auto spacing = image->GetSpacing();
@@ -94,9 +96,9 @@ void Convert(const std::string &input, const std::string &output) {
         image->SetSpacing(spacing);
         image->SetOrigin(origin);
     }
-    if (verbose) std::cout << "Writing image: " << output << std::endl;
+    if (verbose) std::cerr << "Writing image: " << output << std::endl;
     WriteImage<TImage>(image, output);
-    if (verbose) std::cout << "Finished." << std::endl;
+    if (verbose) std::cerr << "Finished." << std::endl;
 }
 
 template<typename T>
@@ -115,7 +117,7 @@ int main(int argc, char **argv) {
     const std::string input = CheckPos(input_file);
     itk::ImageIOBase::Pointer header = itk::ImageIOFactory::CreateImageIO(input.c_str(), itk::ImageIOFactory::ReadMode);
     if (!header) FAIL("Could not open: " << input);
-    if (verbose) std::cout << "Reading header information: " << input << std::endl;
+    if (verbose) std::cerr << "Reading header information: " << input << std::endl;
     header->SetFileName(input);
     header->ReadImageInformation();
     auto dict = header->GetMetaDataDictionary();

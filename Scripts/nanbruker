@@ -8,7 +8,8 @@ Will generate diffusion .bvec and .bval files for all DTI acquisitions.
 
 Options (must go first):
     -e EXT : Use a different extension, e.g. .nrrd
-    -l     : Keep localizers
+    -l     : Convert localizers
+    -m     : Copy method file
     -p P   : Convert only the sequences that match pattern P
     -o DIR : Write output directories to this directory
     -q Q   : Submit jobs to the specified SGE queu
@@ -19,23 +20,25 @@ Options (must go first):
 
 EXT=".nii"
 LOCALIZERS=""
+METHOD=""
 QUEUE=""
 PATTERN="[0-9]*"
 SCALE=""
 OUT_DIR="$PWD"
 VERBOSE=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-while getopts "e:lo:p:q:svz" opt; do
+while getopts "e:lmo:p:q:svz" opt; do
     case $opt in
         e) EXT="$OPTARG";;
         l) LOCALIZERS="1";;
+        m) METHOD="-m";;
         o) OUT_DIR="$OPTARG";;
         p) PATTERN="$OPTARG";;
         q) QUEUE="-q $OPTARG"
            LOG_DIR="$OUT_DIR/nanbruker_logs/"
            mkdir -p $LOG_DIR
            ;;
-        s) SCALE="--scale";;
+        s) SCALE="-s";;
         v) VERBOSE="-v";;
         z) EXT=".nii.gz";;
     esac
@@ -75,11 +78,18 @@ while test ${#} -gt 0; do
             else
                 if [[ -z "$QUEUE" ]]; then
                     echo "Converting $IMG"
-                    nanconvert_bruker $VERBOSE $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
-                        --rename="VisuExperimentNumber" \
-                        --rename="VisuProcessingNumber" \
-                        --rename="VisuAcquisitionProtocol" \
-                        --rename="VisuSeriesComment"
+                    RENAME=$( nanconvert_bruker $VERBOSE $IMG $EXT $SCALE --prefix="$TGT_DIR"/\
+                                --rename="VisuExperimentNumber" \
+                                --rename="VisuProcessingNumber" \
+                                --rename="VisuAcquisitionProtocol" \
+                                --rename="VisuSeriesComment" )
+                    if [[ -n "$METHOD" ]]; then
+                        echo "Copying method file"
+                        METHOD_SRC="$IMG_DIR/../../method"
+                        METHOD_DST="$TGT_DIR/$RENAME.method"
+                        cp $METHOD_SRC $METHOD_DST
+                        chmod ugo+r-x $METHOD_DST
+                    fi
                 else
                     echo $IMG >> $INDEX_FILE
                 fi
@@ -93,7 +103,7 @@ while test ${#} -gt 0; do
         COUNT="$( wc -l < $INDEX_FILE )"
         if [[ "$COUNT" -gt 0 ]]; then
             echo "Found $COUNT images to convert"
-            qsub -t 1:$COUNT -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE $SCRIPT_DIR/nanbruker_sge.qsub "$INDEX_FILE $EXT $TGT_DIR $SCALE"
+            qsub -t 1:$COUNT -o ${LOG_DIR}/ -e ${LOG_DIR}/ -j y $QUEUE $SCRIPT_DIR/nanbruker_sge.qsub "$SCALE $METHOD $INDEX_FILE $EXT $TGT_DIR"
         else
             echo "No files to convert in index file, not submitting a job"
         fi
