@@ -4,10 +4,14 @@
 #$ -cwd                      # Execute from current working directory, not home
 set -eu
 
-while getopts "ms" opt; do
+METHOD=""
+SCALE=""
+VERBOSE=""
+while getopts "msv" opt; do
     case $opt in
         m) METHOD="-m";;
         s) SCALE="-s";;
+        v) VERBOSE="-v";;
     esac
 done
 shift  $((OPTIND - 1))
