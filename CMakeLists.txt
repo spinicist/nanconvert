@@ -1,6 +1,6 @@
 cmake_minimum_required( VERSION 3.2 FATAL_ERROR )
 project( NANCONVERT CXX )
-set( CMAKE_CXX_STANDARD 11 )
+set( CMAKE_CXX_STANDARD 17 )
 set( CMAKE_CXX_STANDARD_REQUIRED on )
 aux_source_directory(. SRC_LIST )
 include( CheckCXXCompilerFlag )
