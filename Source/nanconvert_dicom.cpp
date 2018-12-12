@@ -34,15 +34,16 @@ args::Positional<std::string> input_arg(parser, "INPUT", "Input directory");
 args::Positional<std::string> output_arg(parser, "EXTENSION", "Output extension");
 
 args::HelpFlag help(parser, "HELP", "Show this help menu", {'h', "help"});
-args::Flag     verbose(parser, "VERBOSE", "Print more information", {'v', "verbose"});
-args::Flag     double_precision(parser, "DOUBLE", "Write out double precision files", {'d', "double"});
+args::Flag verbose(parser, "VERBOSE", "Print more information", {'v', "verbose"});
+args::Flag double_precision(parser, "DOUBLE", "Write out double precision files", {'d', "double"});
 args::ValueFlagList<std::string> rename_args(parser, "RENAME", "Rename using specified header fields (can be multiple).", {'r', "rename"});
-args::ValueFlag<std::string>     prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
+args::ValueFlag<std::string> prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
 
 using Volume = itk::Image<float, 3>;
 using Series = itk::Image<float, 4>;
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     ParseArgs(parser, argc, argv);
     const std::string input_dir = CheckPos(input_arg);
     const std::string extension = GetExt(CheckPos(output_arg));
@@ -67,27 +68,33 @@ int main(int argc, char **argv) {
     name_generator->SetGlobalWarningDisplay(false);
     name_generator->SetDirectory(input_dir);
 
-    try {
+    try
+    {
         std::vector<std::string> seriesUID = name_generator->GetSeriesUIDs();
         std::vector<std::string>::const_iterator series_it = seriesUID.begin();
 
-        if (series_it != seriesUID.end()) {
-            if (verbose) {
+        if (series_it != seriesUID.end())
+        {
+            if (verbose)
+            {
                 std::cout << "The directory: ";
                 std::cout << input_dir << std::endl;
                 std::cout << "Contains the following DICOM Series: ";
                 std::cout << std::endl;
             }
-        } else {
+        }
+        else
+        {
             std::cout << "No DICOMs in: " << input_dir << std::endl;
             return EXIT_SUCCESS;
         }
 
-        while (series_it != seriesUID.end()) {
-            if (verbose) std::cout  << *series_it << std::endl;
+        while (series_it != seriesUID.end())
+        {
+            if (verbose)
+                std::cout << *series_it << std::endl;
             ++series_it;
         }
-
 
         itk::FixedArray<unsigned int, 4> layout;
         layout[0] = layout[1] = layout[2] = 1;
@@ -99,15 +106,19 @@ int main(int argc, char **argv) {
         std::sort(seriesUID.begin(), seriesUID.end());
         series_it = seriesUID.begin();
 
-        struct volume_entry {
+        struct volume_entry
+        {
             Volume::Pointer image;
             int triggertime;
+            int imagetype;
         };
         std::vector<volume_entry> volumes;
-        while (series_it != seriesUID.end()) {
+        while (series_it != seriesUID.end())
+        {
             std::string seriesIdentifier = *series_it;
             ++series_it;
-            if (verbose) std::cout << "Reading: " << seriesIdentifier << std::endl;
+            if (verbose)
+                std::cout << "Reading: " << seriesIdentifier << std::endl;
             std::vector<std::string> fileNames = name_generator->GetFileNames(seriesIdentifier);
 
             auto reader = itk::ImageSeriesReader<Volume>::New();
@@ -117,51 +128,71 @@ int main(int argc, char **argv) {
             reader->SetFileNames(fileNames);
             reader->Update();
             meta = dicomIO->GetMetaDataDictionary();
-            if (meta.HasKey("0018|1060")) {
-                try {
-                    volumes.push_back({reader->GetOutput(), std::stoi(GetMetaData<std::string>(meta, "0018|1060"))});
-                } catch (std::exception &e) {
-                    if (verbose) std::cerr << "Invalid trigger time, set to 0" << std::endl;
-                    volumes.push_back({reader->GetOutput(), 0});
+
+            const auto type = std::stoi(GetMetaData<std::string>(meta, "0043|102f"));
+            int triggertime = 0;
+            try
+            {
+                if (meta.HasKey("0018|1060"))
+                {
+                    triggertime = std::stoi(GetMetaData<std::string>(meta, "0018|1060"));
                 }
-            } else {
-                volumes.push_back({reader->GetOutput(), 0});
             }
+            catch (std::exception &e)
+            {
+                if (verbose)
+                    std::cerr << "Invalid trigger time, set to 0" << std::endl;
+            }
+            volumes.push_back({reader->GetOutput(), triggertime, type});
             reader->GetOutput()->DisconnectPipeline();
         }
         std::sort(volumes.begin(),
                   volumes.end(),
-                  [](volume_entry &a, volume_entry &b) { return a.triggertime > b.triggertime; });
-        for (unsigned int volume = 0; volume < volumes.size(); volume++) {
+                  [](volume_entry &a, volume_entry &b) { return (a.imagetype > b.imagetype) || (a.triggertime > b.triggertime); });
+        for (unsigned int volume = 0; volume < volumes.size(); volume++)
+        {
             tiler->SetInput(volume, volumes[volume].image);
         }
         tiler->Update();
-        const auto series_number      = std::stoi(GetMetaData<std::string>(meta, "0020|0011"));
+        const auto series_number = std::stoi(GetMetaData<std::string>(meta, "0020|0011"));
         const auto series_description = SanitiseString(Trim(GetMetaData<std::string>(meta, "0008|103e")));
         const auto data_type_int = std::stoi(GetMetaData<std::string>(meta, "0043|102f", "0"));
         std::string data_type_string;
-        switch (data_type_int) {
-            case 0: data_type_string = ""; break;
-            case 1: data_type_string = "phase_"; break;
-            case 2: data_type_string = "real_"; break;
-            case 3: data_type_string = "imag_"; break;
-            default: FAIL("Unknown data-type: " << data_type_int);
+        switch (data_type_int)
+        {
+        case 0:
+            data_type_string = "";
+            break;
+        case 1:
+            data_type_string = "phase_";
+            break;
+        case 2:
+            data_type_string = "real_";
+            break;
+        case 3:
+            data_type_string = "imag_";
+            break;
+        default:
+            FAIL("Unknown data-type: " << data_type_int);
         }
         const auto echo_number = std::stoi(GetMetaData<std::string>(meta, "0018|0086", "1"));
         const auto filename = fmt::format("{:04d}_{}_{:02d}{}",
-                                            series_number,
-                                            series_description,
-                                            // data_type_string,
-                                            echo_number,
-                                            extension);
+                                          series_number,
+                                          series_description,
+                                          // data_type_string,
+                                          echo_number,
+                                          extension);
         auto writer = itk::ImageFileWriter<Series>::New();
         writer->SetFileName(filename);
         writer->SetInput(tiler->GetOutput());
-        if (verbose) std::cout << "Writing: " << filename << std::endl;
+        if (verbose)
+            std::cout << "Writing: " << filename << std::endl;
         writer->Update();
-    } catch (itk::ExceptionObject &ex) {
+    }
+    catch (itk::ExceptionObject &ex)
+    {
         std::cerr << ex << std::endl;
         return EXIT_FAILURE;
     }
-  return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
 }
