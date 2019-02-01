@@ -10,7 +10,6 @@
  */
 
 #include <algorithm>
-#include <cstdlib>
 #include <fmt/format.h>
 
 #include "itkImage.h"
@@ -77,23 +76,18 @@ int main(int argc, char **argv)
         {
             if (verbose)
             {
-                std::cout << "The directory: ";
-                std::cout << input_dir << std::endl;
-                std::cout << "Contains the following DICOM Series: ";
-                std::cout << std::endl;
+                fmt::print(stderr, "The directory: {}\n Contains the following DICOM Series:\n", input_dir);
+                while (series_it != seriesUID.end())
+                {
+                    fmt::print(stderr, "{}\n", *series_it);
+                    ++series_it;
+                }
             }
-        }
-        else
-        {
-            std::cout << "No DICOMs in: " << input_dir << std::endl;
-            return EXIT_SUCCESS;
-        }
-
-        while (series_it != seriesUID.end())
-        {
-            if (verbose)
-                std::cout << *series_it << std::endl;
-            ++series_it;
+            else
+            {
+                fmt::print(stderr, "No DICOMs in: {}\n", input_dir);
+                return EXIT_SUCCESS;
+            }
         }
 
         itk::FixedArray<unsigned int, 4> layout;
@@ -118,7 +112,9 @@ int main(int argc, char **argv)
             std::string seriesIdentifier = *series_it;
             ++series_it;
             if (verbose)
-                std::cout << "Reading: " << seriesIdentifier << std::endl;
+            {
+                fmt::print(stderr, "Reading: {}\n", seriesIdentifier);
+            }
             std::vector<std::string> fileNames = name_generator->GetFileNames(seriesIdentifier);
 
             auto reader = itk::ImageSeriesReader<Volume>::New();
@@ -141,7 +137,9 @@ int main(int argc, char **argv)
             catch (std::exception &e)
             {
                 if (verbose)
-                    std::cerr << "Invalid trigger time, set to 0" << std::endl;
+                {
+                    fmt::print(stderr, "Invalid trigger time, set to 0\n");
+                }
             }
             volumes.push_back({reader->GetOutput(), triggertime, type});
             reader->GetOutput()->DisconnectPipeline();
@@ -186,12 +184,14 @@ int main(int argc, char **argv)
         writer->SetFileName(filename);
         writer->SetInput(tiler->GetOutput());
         if (verbose)
-            std::cout << "Writing: " << filename << std::endl;
+        {
+            fmt::print(stderr, "Writing: {}\n", filename);
+        }
         writer->Update();
     }
     catch (itk::ExceptionObject &ex)
     {
-        std::cerr << ex << std::endl;
+        fmt::print(stderr, "{}\n", ex.what());
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
