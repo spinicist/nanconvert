@@ -10,7 +10,7 @@
  */
 
 #include <algorithm>
-#include <fmt/format.h>
+#include <spdlog/spdlog.h>
 
 #include "itkImage.h"
 #include "itkGDCMImageIO.h"
@@ -76,16 +76,16 @@ int main(int argc, char **argv)
         {
             if (verbose)
             {
-                fmt::print(stderr, "The directory: {}\n Contains the following DICOM Series:\n", input_dir);
+                spdlog::info("The directory: {}\n Contains the following DICOM Series:", input_dir);
                 while (series_it != seriesUID.end())
                 {
-                    fmt::print(stderr, "{}\n", *series_it);
+                    spdlog::info("{}", *series_it);
                     ++series_it;
                 }
             }
             else
             {
-                fmt::print(stderr, "No DICOMs in: {}\n", input_dir);
+                spdlog::error("No DICOMs in: {}", input_dir);
                 return EXIT_SUCCESS;
             }
         }
@@ -113,7 +113,7 @@ int main(int argc, char **argv)
             ++series_it;
             if (verbose)
             {
-                fmt::print(stderr, "Reading: {}\n", seriesIdentifier);
+                spdlog::info("Reading: {}", seriesIdentifier);
             }
             std::vector<std::string> fileNames = name_generator->GetFileNames(seriesIdentifier);
 
@@ -138,7 +138,7 @@ int main(int argc, char **argv)
             {
                 if (verbose)
                 {
-                    fmt::print(stderr, "Invalid trigger time, set to 0\n");
+                    spdlog::warn("Invalid trigger time, set to 0");
                 }
             }
             volumes.push_back({reader->GetOutput(), triggertime, type});
@@ -146,7 +146,7 @@ int main(int argc, char **argv)
         }
         std::sort(volumes.begin(),
                   volumes.end(),
-                  [](volume_entry &a, volume_entry &b) { return (a.imagetype > b.imagetype) || (a.triggertime > b.triggertime); });
+                  [](volume_entry &a, volume_entry &b) { return (a.imagetype < b.imagetype) || (a.triggertime < b.triggertime); });
         for (unsigned int volume = 0; volume < volumes.size(); volume++)
         {
             tiler->SetInput(volume, volumes[volume].image);
@@ -185,13 +185,13 @@ int main(int argc, char **argv)
         writer->SetInput(tiler->GetOutput());
         if (verbose)
         {
-            fmt::print(stderr, "Writing: {}\n", filename);
+            spdlog::info("Writing: {}", filename);
         }
         writer->Update();
     }
     catch (itk::ExceptionObject &ex)
     {
-        fmt::print(stderr, "{}\n", ex.what());
+        spdlog::error("{}", ex.what());
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
