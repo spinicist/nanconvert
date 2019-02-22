@@ -83,11 +83,11 @@ int main(int argc, char **argv)
                     ++series_it;
                 }
             }
-            else
-            {
-                spdlog::error("No DICOMs in: {}", input_dir);
-                return EXIT_SUCCESS;
-            }
+        }
+        else
+        {
+            spdlog::error("No DICOMs in: {}", input_dir);
+            return EXIT_SUCCESS;
         }
 
         itk::FixedArray<unsigned int, 4> layout;
