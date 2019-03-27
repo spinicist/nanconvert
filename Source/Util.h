@@ -17,7 +17,6 @@
 #include <vector>
 #include "itkMetaDataObject.h"
 
-const std::string &GetVersion();                   //!< Return the version of the QI library
 const std::string &OutExt();                       //!< Return the extension stored in $QUIT_EXT
 std::string StripExt(const std::string &filename); //!< Remove the extension from a filename
 std::string GetExt(const std::string &filename);   //!< Return the extension from a filename (including .)

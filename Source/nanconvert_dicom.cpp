@@ -10,14 +10,13 @@
  */
 
 #include <algorithm>
-#include <spdlog/spdlog.h>
 
+#include "fmt/format.h"
 #include "itkImage.h"
 #include "itkGDCMImageIO.h"
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImageSeriesReader.h"
 #include "itkImageFileWriter.h"
-#include "itkRegionOfInterestImageFilter.h"
 #include "itkTileImageFilter.h"
 
 #include "Args.h"
@@ -27,7 +26,7 @@
 /*
  * Declare args here so things like verbose can be global
  */
-args::ArgumentParser parser(std::string("Convert DICOM format to whatever you want\n") + GetVersion() + "\nhttp://github.com/spinicist/nanconvert");
+args::ArgumentParser parser("Convert DICOM format to whatever you want\nhttp://github.com/spinicist/nanconvert");
 
 args::Positional<std::string> input_arg(parser, "INPUT", "Input directory");
 args::Positional<std::string> output_arg(parser, "EXTENSION", "Output extension");
@@ -76,17 +75,17 @@ int main(int argc, char **argv)
         {
             if (verbose)
             {
-                spdlog::info("The directory: {}\n Contains the following DICOM Series:", input_dir);
+                fmt::print("The directory: {}\n Contains the following DICOM Series:", input_dir);
                 while (series_it != seriesUID.end())
                 {
-                    spdlog::info("{}", *series_it);
+                    fmt::print("{}", *series_it);
                     ++series_it;
                 }
             }
         }
         else
         {
-            spdlog::error("No DICOMs in: {}", input_dir);
+            fmt::print("No DICOMs in: {}", input_dir);
             return EXIT_SUCCESS;
         }
 
@@ -113,7 +112,7 @@ int main(int argc, char **argv)
             ++series_it;
             if (verbose)
             {
-                spdlog::info("Reading: {}", seriesIdentifier);
+                fmt::print("Reading: {}", seriesIdentifier);
             }
             std::vector<std::string> fileNames = name_generator->GetFileNames(seriesIdentifier);
 
@@ -138,7 +137,7 @@ int main(int argc, char **argv)
             {
                 if (verbose)
                 {
-                    spdlog::warn("Invalid trigger time, set to 0");
+                    fmt::print("Invalid trigger time, set to 0");
                 }
             }
             volumes.push_back({reader->GetOutput(), triggertime, type});
@@ -185,13 +184,13 @@ int main(int argc, char **argv)
         writer->SetInput(tiler->GetOutput());
         if (verbose)
         {
-            spdlog::info("Writing: {}", filename);
+            fmt::print("Writing: {}", filename);
         }
         writer->Update();
     }
     catch (itk::ExceptionObject &ex)
     {
-        spdlog::error("{}", ex.what());
+        fmt::print("{}", ex.what());
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;

@@ -1,39 +1,47 @@
 cmake_minimum_required( VERSION 3.2 FATAL_ERROR )
+
 project( NANCONVERT CXX )
 set( CMAKE_CXX_STANDARD 17 )
 set( CMAKE_CXX_STANDARD_REQUIRED on )
+add_compile_options("-Wall" "-Wextra" "-Wshadow" "-ftemplate-backtrace-limit=30")
 aux_source_directory(. SRC_LIST )
 include( CheckCXXCompilerFlag )
 include( CMakeToolsHelpers OPTIONAL )
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/CMake)
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${PROJECT_SOURCE_DIR}/CMake)
+include( ${PROJECT_SOURCE_DIR}/CMake/BuildType.cmake )
 
-find_package( ITK 4.12.0 REQUIRED )
+set( External_Include_DIR "${PROJECT_SOURCE_DIR}/include"
+     CACHE PATH "Path to vendored includes (usually /include" )
+include_directories( SYSTEM ${External_Include_DIR} )
+
+# fmtlib: Sane output
+find_package(fmtlib REQUIRED CONFIG)
+if(fmtlib_FOUND)
+    add_library(fmtlib STATIC ${FMTLIB_SOURCES})
+    target_include_directories(fmtlib SYSTEM PUBLIC ${FMTLIB_INCLUDE_DIR})
+endif()
+
+find_package(ITK 5.0.0
+              COMPONENTS
+                ITKCommon
+                ITKIOGDCM
+                ITKIOImageBase
+                ITKImageGrid
+                ITKImageIO
+              REQUIRED )
 include( ${ITK_USE_FILE} )
-set( Args_DIR "${PROJECT_SOURCE_DIR}/External/args"
-     CACHE PATH "Path to Args library (usually External/args" )
-set( SRC_DIR "${PROJECT_SOURCE_DIR}/Source" )
-set( CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMake" )
-include_directories( "${SRC_DIR}" "${Args_DIR}" )
-
-# Version File
-include_directories( ${CMAKE_CURRENT_BINARY_DIR} ) # For version file
-set( VERSION_FILE_NAME "VersionFile" )
-add_custom_target( nanconvert_version ALL DEPENDS version_depend_dummy )
-add_custom_command( OUTPUT version_depend_dummy
-                    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_MODULE_PATH}/GetVersion.cmake )
-set_source_files_properties( ${CMAKE_CURRENT_BINARY_DIR}/${VERSION_FILE_NAME} PROPERTIES GENERATED TRUE HEADER_FILE_ONLY TRUE )
 
 # Main Library
+set( SRC_DIR "${PROJECT_SOURCE_DIR}/Source" )
 add_library( Convert STATIC ${SRC_DIR}/IO.cpp ${SRC_DIR}/Util.cpp )
 
 add_executable( nanconvert_bruker ${SRC_DIR}/nanconvert_bruker.cpp )
-add_dependencies( nanconvert_bruker nanconvert_version )
-target_link_libraries( nanconvert_bruker Convert ${ITK_LIBRARIES} )
+target_link_libraries( nanconvert_bruker Convert ${ITK_LIBRARIES} fmtlib )
 install( TARGETS nanconvert_bruker RUNTIME DESTINATION bin )
 
-include_directories( "External/spdlog/include" )
 add_executable( nanconvert_dicom ${SRC_DIR}/nanconvert_dicom.cpp )
-add_dependencies( nanconvert_dicom nanconvert_version )
-target_link_libraries( nanconvert_dicom Convert ${ITK_LIBRARIES} )
+target_link_libraries( nanconvert_dicom Convert ${ITK_LIBRARIES} fmtlib )
 install( TARGETS nanconvert_dicom RUNTIME DESTINATION bin )
 
 set( SCRIPTS_DIR Scripts )

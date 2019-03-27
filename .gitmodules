@@ -1,9 +1,0 @@
-[submodule "External/args"]
-	path = External/args
-	url = https://github.com/Taywee/args.git
-[submodule "External/ITK"]
-	path = External/ITK
-	url = https://github.com/spinicist/ITK
-[submodule "External/spdlog"]
-	path = External/spdlog
-	url = https://github.com/gabime/spdlog.git
