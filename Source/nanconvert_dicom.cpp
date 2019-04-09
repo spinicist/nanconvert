@@ -12,10 +12,12 @@
 #include <algorithm>
 
 #include "fmt/format.h"
+#include "fmt/ostream.h"
 #include "itkImage.h"
 #include "itkGDCMImageIO.h"
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImageSeriesReader.h"
+#include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
 #include "itkTileImageFilter.h"
 
@@ -37,6 +39,7 @@ args::Flag double_precision(parser, "DOUBLE", "Write out double precision files"
 args::ValueFlagList<std::string> rename_args(parser, "RENAME", "Rename using specified header fields (can be multiple).", {'r', "rename"});
 args::ValueFlag<std::string> prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
 
+using Slice = itk::Image<float, 2>;
 using Volume = itk::Image<float, 3>;
 using Series = itk::Image<float, 4>;
 
@@ -49,144 +52,152 @@ int main(int argc, char **argv)
     name_generator->SetUseSeriesDetails(true);
     name_generator->SetLoadSequences(true);
     name_generator->SetLoadPrivateTags(true);
-    // name_generator->AddSeriesRestriction("0018|1314"); // Flip Angle
-    // name_generator->AddSeriesRestriction("0018|0080"); // Repetition time
-    name_generator->AddSeriesRestriction("0018|0086"); // Echo numbers
-    name_generator->AddSeriesRestriction("0018|1060"); // Trigger time
-    // name_generator->AddSeriesRestriction("0008|0032"); // Acquisition time
-    // name_generator->AddSeriesRestriction("0008|0031"); // Series time
-    // name_generator->AddSeriesRestriction("0008|0033"); // Content time
-    name_generator->AddSeriesRestriction("0018|9087"); // Diffusion b0
-    name_generator->AddSeriesRestriction("0008|0008"); // Image Type (CASL)
+    //* name_generator->AddSeriesRestriction("0018|1314"); // Flip Angle
+    //* name_generator->AddSeriesRestriction("0018|0080"); // Repetition time
+    // name_generator->AddSeriesRestriction("0018|0086"); // Echo numbers
+    // name_generator->AddSeriesRestriction("0018|1060"); // Trigger time
+    //* name_generator->AddSeriesRestriction("0008|0032"); // Acquisition time
+    //* name_generator->AddSeriesRestriction("0008|0031"); // Series time
+    //* name_generator->AddSeriesRestriction("0008|0033"); // Content time
+    // name_generator->AddSeriesRestriction("0018|9087"); // Diffusion b0
+    // name_generator->AddSeriesRestriction("0008|0008"); // Image Type (CASL)
     name_generator->AddSeriesRestriction("0043|1030"); // "Vas collapse flag"
     name_generator->AddSeriesRestriction("0027|1035"); // Plane Type / Orientation
-    name_generator->AddSeriesRestriction("0020|0100"); // Temporal Position Identifier
-    name_generator->AddSeriesRestriction("0018|1250"); // Coil (for ASSET)
+    // name_generator->AddSeriesRestriction("0020|0100"); // Temporal Position Identifier
+    // name_generator->AddSeriesRestriction("0018|1250"); // Coil (for ASSET)
     name_generator->AddSeriesRestriction("0043|102f"); // Magnitude/real/imaginary
     name_generator->SetGlobalWarningDisplay(false);
     name_generator->SetDirectory(input_dir);
 
     try
     {
-        std::vector<std::string> seriesUID = name_generator->GetSeriesUIDs();
-        std::vector<std::string>::const_iterator series_it = seriesUID.begin();
-
-        if (series_it != seriesUID.end())
-        {
-            if (verbose)
-            {
-                fmt::print("The directory: {}\n Contains the following DICOM Series:", input_dir);
-                while (series_it != seriesUID.end())
-                {
-                    fmt::print("{}", *series_it);
-                    ++series_it;
-                }
-            }
-        }
-        else
+        auto seriesUIDs = name_generator->GetSeriesUIDs();
+        if (seriesUIDs.size() == 0)
         {
             fmt::print("No DICOMs in: {}", input_dir);
             return EXIT_SUCCESS;
         }
-
-        itk::FixedArray<unsigned int, 4> layout;
-        layout[0] = layout[1] = layout[2] = 1;
-        layout[3] = seriesUID.size();
-        auto tiler = itk::TileImageFilter<Volume, Series>::New();
-        tiler->SetLayout(layout);
-
-        itk::MetaDataDictionary meta;
-        std::sort(seriesUID.begin(), seriesUID.end());
-        series_it = seriesUID.begin();
-
-        struct volume_entry
+        else
         {
-            Volume::Pointer image;
-            int triggertime;
-            int imagetype;
-        };
-        std::vector<volume_entry> volumes;
-        while (series_it != seriesUID.end())
-        {
-            std::string seriesIdentifier = *series_it;
-            ++series_it;
             if (verbose)
             {
-                fmt::print("Reading: {}", seriesIdentifier);
+                fmt::print("Directory: {}\nContains {} DICOM Series\n", input_dir, seriesUIDs.size());
             }
-            std::vector<std::string> fileNames = name_generator->GetFileNames(seriesIdentifier);
+        }
 
-            auto reader = itk::ImageSeriesReader<Volume>::New();
+        for (auto const &seriesID : seriesUIDs)
+        {
+            if (verbose)
+            {
+                fmt::print("Reading: {}\n", seriesID);
+            }
+            std::vector<std::string> fileNames = name_generator->GetFileNames(seriesID);
+            struct dicom_entry
+            {
+                Slice::Pointer image;
+                int slice, echo, b0, temporal, instance;
+                std::string casl, coil;
+            };
+            std::vector<dicom_entry> dicoms(fileNames.size());
+
+            auto reader = itk::ImageFileReader<Slice>::New();
             auto dicomIO = itk::GDCMImageIO::New();
             dicomIO->LoadPrivateTagsOn();
             reader->SetImageIO(dicomIO);
-            reader->SetFileNames(fileNames);
-            reader->Update();
-            meta = dicomIO->GetMetaDataDictionary();
+            itk::MetaDataDictionary meta;
+            for (size_t i = 0; i < fileNames.size(); i++)
+            {
+                reader->SetFileName(fileNames[i]);
+                reader->Update();
+                meta = dicomIO->GetMetaDataDictionary();
+                const auto slice = std::stoi(GetMetaData<std::string>(meta, "0020|9057"));
+                const auto echo = std::stoi(GetMetaData<std::string>(meta, "0018|0086", "0"));
+                const auto b0 = std::stoi(GetMetaData<std::string>(meta, "0018|9087", "0"));
+                const auto temporal = std::stoi(GetMetaData<std::string>(meta, "0020|0100", "0"));
+                const auto instance = std::stoi(GetMetaData<std::string>(meta, "0020|0013"));
+                const auto casl = GetMetaData<std::string>(meta, "0008|0008", "0");
+                const auto coil = GetMetaData<std::string>(meta, "0018|1250", "0");
+                dicoms[i] = {reader->GetOutput(), slice, echo, b0, temporal, instance, casl, coil};
+                reader->GetOutput()->DisconnectPipeline();
+            }
 
-            const auto type = std::stoi(GetMetaData<std::string>(meta, "0043|102f"));
-            int triggertime = 0;
-            try
+            std::sort(dicoms.begin(),
+                      dicoms.end(),
+                      [](dicom_entry &a, dicom_entry &b) {
+                          return (a.slice < b.slice) ||
+                                 ((a.slice == b.slice) && ((a.echo < b.echo) ||
+                                                           (a.b0 < b.b0) ||
+                                                           (a.casl < b.casl) ||
+                                                           (a.temporal < b.temporal) ||
+                                                           (a.coil < b.coil) ||
+                                                           (a.instance < b.instance)));
+                      });
+
+            const auto slocs = std::stoi(GetMetaData<std::string>(meta, "0021|104f"));
+            const auto vols = fileNames.size() / slocs;
+
+            itk::FixedArray<unsigned int, 4> layout;
+            layout[0] = layout[1] = 1;
+            layout[2] = slocs;
+            layout[3] = vols;
+            auto tiler = itk::TileImageFilter<Slice, Series>::New();
+            tiler->SetLayout(layout);
+
+            int tilerIndex = 0;
+            for (unsigned int v = 0; v < vols; v++)
             {
-                if (meta.HasKey("0018|1060"))
+                int dicomIndex = v;
+                for (int s = 0; s < slocs; s++)
                 {
-                    triggertime = std::stoi(GetMetaData<std::string>(meta, "0018|1060"));
+                    auto slice = dicoms[dicomIndex].image;
+                    dicomIndex += vols;
+                    tiler->SetInput(tilerIndex++, slice);
                 }
             }
-            catch (std::exception &e)
+            tiler->Update();
+            const auto series_number = std::stoi(GetMetaData<std::string>(meta, "0020|0011"));
+            const auto series_description = SanitiseString(Trim(GetMetaData<std::string>(meta, "0008|103e")));
+            const auto data_type_int = std::stoi(GetMetaData<std::string>(meta, "0043|102f", "0"));
+            const auto slice_thickness = std::stof(GetMetaData<std::string>(meta, "0018|0050", "1"));
+            const auto TR = std::stof(GetMetaData<std::string>(meta, "0018|0080", "1"));
+            Series::Pointer image = tiler->GetOutput();
+            image->DisconnectPipeline();
+            auto spacing = image->GetSpacing();
+            spacing[2] = slice_thickness;
+            spacing[3] = TR;
+            image->SetSpacing(spacing);
+            std::string data_type_string;
+            switch (data_type_int)
             {
-                if (verbose)
-                {
-                    fmt::print("Invalid trigger time, set to 0");
-                }
+            case 0:
+                data_type_string = "";
+                break;
+            case 1:
+                data_type_string = "_phase";
+                break;
+            case 2:
+                data_type_string = "_real";
+                break;
+            case 3:
+                data_type_string = "_imag";
+                break;
+            default:
+                FAIL("Unknown data-type: " << data_type_int);
             }
-            volumes.push_back({reader->GetOutput(), triggertime, type});
-            reader->GetOutput()->DisconnectPipeline();
+            const auto filename = fmt::format("{:04d}_{}{}{}",
+                                              series_number,
+                                              series_description,
+                                              data_type_string,
+                                              extension);
+            auto writer = itk::ImageFileWriter<Series>::New();
+            writer->SetFileName(filename);
+            writer->SetInput(image);
+            if (verbose)
+            {
+                fmt::print("Writing: {}\n", filename);
+            }
+            writer->Update();
         }
-        std::sort(volumes.begin(),
-                  volumes.end(),
-                  [](volume_entry &a, volume_entry &b) { return (a.imagetype < b.imagetype) || (a.triggertime < b.triggertime); });
-        for (unsigned int volume = 0; volume < volumes.size(); volume++)
-        {
-            tiler->SetInput(volume, volumes[volume].image);
-        }
-        tiler->Update();
-        const auto series_number = std::stoi(GetMetaData<std::string>(meta, "0020|0011"));
-        const auto series_description = SanitiseString(Trim(GetMetaData<std::string>(meta, "0008|103e")));
-        const auto data_type_int = std::stoi(GetMetaData<std::string>(meta, "0043|102f", "0"));
-        std::string data_type_string;
-        switch (data_type_int)
-        {
-        case 0:
-            data_type_string = "";
-            break;
-        case 1:
-            data_type_string = "phase_";
-            break;
-        case 2:
-            data_type_string = "real_";
-            break;
-        case 3:
-            data_type_string = "imag_";
-            break;
-        default:
-            FAIL("Unknown data-type: " << data_type_int);
-        }
-        const auto echo_number = std::stoi(GetMetaData<std::string>(meta, "0018|0086", "1"));
-        const auto filename = fmt::format("{:04d}_{}_{:02d}{}",
-                                          series_number,
-                                          series_description,
-                                          // data_type_string,
-                                          echo_number,
-                                          extension);
-        auto writer = itk::ImageFileWriter<Series>::New();
-        writer->SetFileName(filename);
-        writer->SetInput(tiler->GetOutput());
-        if (verbose)
-        {
-            fmt::print("Writing: {}", filename);
-        }
-        writer->Update();
     }
     catch (itk::ExceptionObject &ex)
     {
