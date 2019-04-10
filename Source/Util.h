@@ -12,31 +12,28 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <string>
-#include <iostream>
-#include <vector>
 #include "itkMetaDataObject.h"
+#include <iostream>
+#include <string>
+#include <vector>
 
-const std::string &OutExt();                       //!< Return the extension stored in $QUIT_EXT
-std::string StripExt(const std::string &filename); //!< Remove the extension from a filename
-std::string GetExt(const std::string &filename);   //!< Return the extension from a filename (including .)
-std::string Basename(const std::string &path);     //!< Return only the filename part of a path
-std::string Trim(const std::string &s);            //!< Remove leading and trailing whitespace
-std::string SanitiseString(const std::string &s);  //!< Remove undesirable characters from a filename
+const std::string &OutExt(); //!< Return the extension stored in $QUIT_EXT
+std::string        StripExt(const std::string &filename); //!< Remove the extension from a filename
+std::string
+            GetExt(const std::string &filename); //!< Return the extension from a filename (including .)
+std::string Basename(const std::string &path);    //!< Return only the filename part of a path
+std::string Trim(const std::string &s);           //!< Remove leading and trailing whitespace
+std::string SanitiseString(const std::string &s); //!< Remove undesirable characters from a filename
 
 /*
  * Print a std::vector
  */
-template <typename T>
-inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec)
-{
+template <typename T> inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
     os << "(";
-    if (vec.size() > 0)
-    {
+    if (vec.size() > 0) {
         auto it = vec.begin();
         std::cout << *it;
-        for (it++; it != vec.end(); it++)
-        {
+        for (it++; it != vec.end(); it++) {
             std::cout << ", " << *it;
         }
     }
@@ -47,12 +44,9 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec)
 /*
  * Helper function to recover a value from an ITK meta-data dictionary
  */
-template <typename T>
-T GetMetaData(const itk::MetaDataDictionary &dict, const std::string &name)
-{
+template <typename T> T GetMetaData(const itk::MetaDataDictionary &dict, const std::string &name) {
     T value;
-    if (!ExposeMetaData(dict, name, value))
-    {
+    if (!ExposeMetaData(dict, name, value)) {
         throw std::runtime_error("Could not read parameter: " + name);
     }
     return value;
@@ -62,17 +56,23 @@ T GetMetaData(const itk::MetaDataDictionary &dict, const std::string &name)
  * Version with a default for when a value is required
  */
 template <typename T>
-T GetMetaData(const itk::MetaDataDictionary &dict, const std::string &name, const T &def)
-{
-    T value;
-    if (!ExposeMetaData(dict, name, value))
-    {
+T GetMetaDataFromString(const itk::MetaDataDictionary &dict,
+                        const std::string &            name,
+                        const T &                      def) {
+    std::string string_value;
+    if (!ExposeMetaData(dict, name, string_value)) {
         return def;
-    }
-    else
-    {
+    } else {
+        T                 value;
+        std::stringstream stream_value(string_value);
+        stream_value >> value;
         return value;
     }
 }
+
+template <>
+std::string GetMetaDataFromString(const itk::MetaDataDictionary &dict,
+                                  const std::string &            name,
+                                  const std::string &            def);
 
 #endif // UTIL_H
