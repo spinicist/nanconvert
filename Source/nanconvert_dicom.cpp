@@ -10,6 +10,7 @@
  */
 
 #include <algorithm>
+#include <set>
 
 #include "fmt/format.h"
 #include "fmt/ostream.h"
@@ -80,7 +81,8 @@ int main(int argc, char **argv) {
             }
             struct dicom_entry {
                 Slice::Pointer image;
-                int            slice, echo, b0, temporal, instance;
+                float          slice; // Position
+                int            echo, b0, temporal, instance;
                 std::string    casl, coil;
             };
             std::vector<dicom_entry> dicoms(fileNames.size());
@@ -94,7 +96,7 @@ int main(int argc, char **argv) {
                 reader->SetFileName(fileNames[i]);
                 reader->Update();
                 meta                = dicomIO->GetMetaDataDictionary();
-                const auto slice    = GetMetaDataFromString<int>(meta, "0020|9057", 0);
+                const auto slice    = GetMetaDataFromString<float>(meta, "0020|1041", 0);
                 const auto echo     = GetMetaDataFromString<int>(meta, "0018|0086", 0);
                 const auto b0       = GetMetaDataFromString<int>(meta, "0018|9087", 0);
                 const auto temporal = GetMetaDataFromString<int>(meta, "0020|0100", 0);
@@ -106,8 +108,12 @@ int main(int argc, char **argv) {
             }
 
             if (verbose)
-                fmt::print("Sorting slices...\n");
-            std::sort(dicoms.begin(), dicoms.end(), [](dicom_entry &a, dicom_entry &b) {
+                fmt::print("Sorting images...\n");
+            std::set<float>       slocs;
+            std::set<std::string> coils;
+            std::sort(dicoms.begin(), dicoms.end(), [&](dicom_entry &a, dicom_entry &b) {
+                slocs.insert(a.slice);
+                slocs.insert(b.slice);
                 return (a.slice < b.slice) ||
                        ((a.slice == b.slice) &&
                         ((a.echo < b.echo) ||
@@ -121,19 +127,14 @@ int main(int argc, char **argv) {
                                 ((a.coil < b.coil) ||
                                  ((a.coil == b.coil) && (a.instance < b.instance))))))))))));
             });
-
-            auto slocs = GetMetaDataFromString<size_t>(meta, "0021|104f", 1);
-            if (fileNames.size() < slocs) {
-                slocs = fileNames.size();
-            }
-            const auto vols = fileNames.size() / slocs;
+            const auto vols = fileNames.size() / slocs.size();
 
             if (verbose)
-                fmt::print("Assembling slices into {} volumes...\n", vols);
+                fmt::print("I think there are {} slices and {} volumes...\n", slocs.size(), vols);
 
             itk::FixedArray<unsigned int, 4> layout;
             layout[0] = layout[1] = 1;
-            layout[2]             = slocs;
+            layout[2]             = slocs.size();
             layout[3]             = vols;
             auto tiler            = itk::TileImageFilter<Slice, Series>::New();
             tiler->SetLayout(layout);
@@ -141,7 +142,7 @@ int main(int argc, char **argv) {
             size_t tilerIndex = 0;
             for (size_t v = 0; v < vols; v++) {
                 size_t dicomIndex = v;
-                for (size_t s = 0; s < slocs; s++) {
+                for (size_t s = 0; s < slocs.size(); s++) {
                     auto slice = dicoms[dicomIndex].image;
                     tiler->SetInput(tilerIndex++, slice);
                     dicomIndex += vols;
@@ -151,10 +152,12 @@ int main(int argc, char **argv) {
             const auto series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
             const auto series_description =
                 SanitiseString(Trim(GetMetaDataFromString<std::string>(meta, "0008|103e", "")));
-            const auto      data_type_int   = GetMetaDataFromString<int>(meta, "0043|102f", 0);
-            const auto      slice_thickness = GetMetaDataFromString<float>(meta, "0018|0050", 1.0f);
-            const auto      TR              = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
-            Series::Pointer image           = tiler->GetOutput();
+            const auto data_type_int = GetMetaDataFromString<int>(meta, "0043|102f", 0);
+            // Can't trust 0018|0050 for zero-filled images
+            const auto slice_thickness =
+                std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1);
+            const auto      TR    = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
+            Series::Pointer image = tiler->GetOutput();
             image->DisconnectPipeline();
             auto spacing = image->GetSpacing();
             spacing[2]   = slice_thickness;
