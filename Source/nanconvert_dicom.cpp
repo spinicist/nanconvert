@@ -81,9 +81,9 @@ int main(int argc, char **argv) {
             }
             struct dicom_entry {
                 Slice::Pointer image;
-                float          slice; // Position
-                int            echo, b0, temporal, instance;
-                std::string    casl, coil;
+                float          sloc, te; // Position
+                int            b0, temporal, instance;
+                std::string    casl, coil, b_dir;
             };
             std::vector<dicom_entry> dicoms(fileNames.size());
 
@@ -95,39 +95,54 @@ int main(int argc, char **argv) {
             for (size_t i = 0; i < fileNames.size(); i++) {
                 reader->SetFileName(fileNames[i]);
                 reader->Update();
-                meta                = dicomIO->GetMetaDataDictionary();
-                const auto slice    = GetMetaDataFromString<float>(meta, "0020|1041", 0);
-                const auto echo     = GetMetaDataFromString<int>(meta, "0018|0086", 0);
-                const auto b0       = GetMetaDataFromString<int>(meta, "0018|9087", 0);
-                const auto temporal = GetMetaDataFromString<int>(meta, "0020|0100", 0);
-                const auto instance = GetMetaDataFromString<int>(meta, "0020|0013", 0);
-                const auto casl     = GetMetaDataFromString<std::string>(meta, "0008|0008", "0");
-                const auto coil     = GetMetaDataFromString<std::string>(meta, "0018|1250", "0");
-                dicoms[i] = {reader->GetOutput(), slice, echo, b0, temporal, instance, casl, coil};
+                meta             = dicomIO->GetMetaDataDictionary();
+                auto const sloc  = GetMetaDataFromString<float>(meta, "0020|1041", 0);
+                auto const te    = GetMetaDataFromString<float>(meta, "0018|0081", 0);
+                auto const b0    = GetMetaDataFromString<int>(meta, "0043|1039", 0);
+                auto const b_dir = GetMetaDataFromString<std::string>(meta, "0019|10bb", "0") +
+                                   "," +
+                                   GetMetaDataFromString<std::string>(meta, "0019|10bc", "0") +
+                                   "," + GetMetaDataFromString<std::string>(meta, "0019|10bd", "0");
+                auto const temporal = GetMetaDataFromString<int>(meta, "0020|0100", 0);
+                auto const instance = GetMetaDataFromString<int>(meta, "0020|0013", 0);
+                auto const casl     = GetMetaDataFromString<std::string>(meta, "0008|0008", "0");
+                auto const coil     = GetMetaDataFromString<std::string>(meta, "0018|1250", "0");
+                dicoms[i]           = {
+                    reader->GetOutput(), sloc, te, b0, temporal, instance, casl, coil, b_dir};
                 reader->GetOutput()->DisconnectPipeline();
             }
 
             if (verbose)
                 fmt::print("Sorting images...\n");
-            std::set<float>       slocs;
-            std::set<std::string> coils;
             std::sort(dicoms.begin(), dicoms.end(), [&](dicom_entry &a, dicom_entry &b) {
-                slocs.insert(a.slice);
-                slocs.insert(b.slice);
-                return (a.slice < b.slice) ||
-                       ((a.slice == b.slice) &&
-                        ((a.echo < b.echo) ||
-                         ((a.echo == b.echo) &&
+                return (a.sloc < b.sloc) ||
+                       ((a.sloc == b.sloc) &&
+                        ((a.te < b.te) ||
+                         ((a.te == b.te) &&
                           ((a.b0 < b.b0) ||
                            ((a.b0 == b.b0) &&
-                            ((a.casl < b.casl) ||
-                             ((a.casl == b.casl) &&
-                              ((a.temporal < b.temporal) ||
-                               ((a.temporal == b.temporal) &&
-                                ((a.coil < b.coil) ||
-                                 ((a.coil == b.coil) && (a.instance < b.instance))))))))))));
+                            ((a.b_dir == b.b_dir) &&
+                             ((a.b_dir < b.b_dir) ||
+                              ((a.casl < b.casl) ||
+                               ((a.casl == b.casl) &&
+                                ((a.temporal < b.temporal) ||
+                                 ((a.temporal == b.temporal) &&
+                                  ((a.coil < b.coil) ||
+                                   ((a.coil == b.coil) && (a.instance < b.instance))))))))))))));
             });
-            const auto vols = fileNames.size() / slocs.size();
+
+            if (verbose)
+                fmt::print("Extracting unique information...\n");
+            std::set<float>       slocs, tes, b0s;
+            std::set<std::string> b_dirs;
+
+            for (auto const &d : dicoms) {
+                slocs.insert(d.sloc);
+                tes.insert(d.te);
+                b0s.insert(d.b0);
+                b_dirs.insert(d.b_dir);
+            }
+            auto const vols = fileNames.size() / slocs.size();
 
             if (verbose)
                 fmt::print("I think there are {} slices and {} volumes...\n", slocs.size(), vols);
@@ -149,14 +164,14 @@ int main(int argc, char **argv) {
                 }
             }
             tiler->Update();
-            const auto series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
-            const auto series_description =
+            auto const series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
+            auto const series_description =
                 SanitiseString(Trim(GetMetaDataFromString<std::string>(meta, "0008|103e", "")));
-            const auto data_type_int = GetMetaDataFromString<int>(meta, "0043|102f", 0);
+            auto const data_type_int = GetMetaDataFromString<int>(meta, "0043|102f", 0);
             // Can't trust 0018|0050 for zero-filled images
-            const auto slice_thickness =
+            auto const slice_thickness =
                 std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1);
-            const auto      TR    = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
+            auto const      TR    = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
             Series::Pointer image = tiler->GetOutput();
             image->DisconnectPipeline();
             auto spacing = image->GetSpacing();
@@ -180,7 +195,7 @@ int main(int argc, char **argv) {
             default:
                 FAIL("Unknown data-type: " << data_type_int);
             }
-            const auto filename = fmt::format(
+            auto const filename = fmt::format(
                 "{:04d}_{}{}{}", series_number, series_description, data_type_string, extension);
             auto writer = itk::ImageFileWriter<Series>::New();
             writer->SetFileName(filename);
@@ -189,6 +204,27 @@ int main(int argc, char **argv) {
                 fmt::print("Writing: {}\n", filename);
             }
             writer->Update();
+            auto const infoname = fmt::format(
+                "{:04d}_{}{}{}", series_number, series_description, data_type_string, ".txt");
+
+            std::ofstream info(infoname);
+            info << "TR: " << TR << "\n";
+            info << "TE: ";
+            for (auto const &te : tes) {
+                info << te << "\t";
+            };
+            info << "\n";
+            if (b0s.size() > 1) {
+                info << "b0: ";
+                for (auto const &b0 : b0s) {
+                    info << b0 << "\t";
+                };
+                info << "\n";
+                info << "b_dirs:\n";
+                for (auto const &b_dir : b_dirs) {
+                    info << b_dir << "\n";
+                };
+            }
         }
     } catch (itk::ExceptionObject &ex) {
         fmt::print("{}", ex.what());
