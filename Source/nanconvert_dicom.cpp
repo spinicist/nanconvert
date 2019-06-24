@@ -133,17 +133,13 @@ int main(int argc, char **argv) {
 
             if (verbose)
                 fmt::print("Extracting unique information...\n");
-            std::set<float>       slocs, tes, b0s;
-            std::set<std::string> b_dirs;
-
+            std::set<float> slocs, tes, b0s;
             for (auto const &d : dicoms) {
                 slocs.insert(d.sloc);
                 tes.insert(d.te);
                 b0s.insert(d.b0);
-                b_dirs.insert(d.b_dir);
             }
             auto const vols = fileNames.size() / slocs.size();
-
             if (verbose)
                 fmt::print("I think there are {} slices and {} volumes...\n", slocs.size(), vols);
 
@@ -154,9 +150,11 @@ int main(int argc, char **argv) {
             auto tiler            = itk::TileImageFilter<Slice, Series>::New();
             tiler->SetLayout(layout);
 
-            size_t tilerIndex = 0;
+            std::vector<std::string> b_dirs;
+            size_t                   tilerIndex = 0;
             for (size_t v = 0; v < vols; v++) {
                 size_t dicomIndex = v;
+                b_dirs.push_back(dicoms[dicomIndex].b_dir);
                 for (size_t s = 0; s < slocs.size(); s++) {
                     auto slice = dicoms[dicomIndex].image;
                     tiler->SetInput(tilerIndex++, slice);
