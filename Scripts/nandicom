@@ -41,7 +41,7 @@ while test ${#} -gt 0; do
     cd "$TGT_DIR"
     echo "Converting study $BASE_DIR"
     if [ -z "${SERIES}" ]; then
-        IMGS=$( ls -1 "${SRC_DIR}"/*.tar.bz2 | sort -n )
+        IMGS=$( ls -1 "${SRC_DIR}"/*.????.tar.bz2 | sort -n )
         echo "Found" $( wc -w <<< $IMGS ) "images to convert"
     else
         IMGS=$( ls -1 "${SRC_DIR}"/${BASE_DIR}.${SERIES}.tar.bz2 )
