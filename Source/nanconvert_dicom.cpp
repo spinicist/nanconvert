@@ -33,15 +33,20 @@ args::ArgumentParser
     parser("Convert DICOM format to whatever you want\nhttp://github.com/spinicist/nanconvert");
 
 args::Positional<std::string> input_arg(parser, "INPUT", "Input directory");
-args::Positional<std::string> output_arg(parser, "EXTENSION", "Output extension");
 
 args::HelpFlag help(parser, "HELP", "Show this help menu", {'h', "help"});
 args::Flag     verbose(parser, "VERBOSE", "Print more information", {'v', "verbose"});
 args::Flag double_precision(parser, "DOUBLE", "Write out double precision files", {'d', "double"});
+args::Flag param_file(parser,
+                      "PARAMS",
+                      "Write out text file with parameters (TE/TR etc.)",
+                      {'p', "params"});
 args::ValueFlagList<std::string> rename_args(
-    parser, "RENAME", "Rename using specified header fields (can be multiple).", {'r', "rename"});
+    parser, "RENAME", "Rename using specified header fields (can be multiple)", {'r', "rename"});
+args::ValueFlag<std::string> ext_flag(
+    parser, "EXTENSION", "File extension/format to use (default .nii)", {'e', "ext"}, ".nii");
 args::ValueFlag<std::string>
-    prefix(parser, "PREFIX", "Add a prefix to output filename.", {'p', "prefix"});
+    prefix(parser, "PREFIX", "Add a prefix to output filename", {'p', "prefix"});
 
 using Slice  = itk::Image<float, 2>;
 using Volume = itk::Image<float, 3>;
@@ -50,7 +55,7 @@ using Series = itk::Image<float, 4>;
 int main(int argc, char **argv) {
     ParseArgs(parser, argc, argv);
     const std::string input_dir      = CheckPos(input_arg);
-    const std::string extension      = GetExt(CheckPos(output_arg));
+    const std::string extension      = GetExt(ext_flag.Get());
     auto              name_generator = itk::GDCMSeriesFileNames::New();
     name_generator->SetUseSeriesDetails(true);
     name_generator->SetLoadSequences(true);
@@ -205,23 +210,26 @@ int main(int argc, char **argv) {
             auto const infoname = fmt::format(
                 "{:04d}_{}{}{}", series_number, series_description, data_type_string, ".txt");
 
-            std::ofstream info(infoname);
-            info << "TR: " << TR << "\n";
-            info << "TE: ";
-            for (auto const &te : tes) {
-                info << te << "\t";
-            };
-            info << "\n";
-            if (b0s.size() > 1) {
-                info << "b0: ";
-                for (auto const &b0 : b0s) {
-                    info << b0 << "\t";
-                };
+            if (param_file) {
+                std::ofstream info(infoname);
+                info << "TR: " << TR << "\n";
+                info << "TE: ";
+                for (auto const &te : tes) {
+                    info << te << "\t";
+                }
+
                 info << "\n";
-                info << "b_dirs:\n";
-                for (auto const &b_dir : b_dirs) {
-                    info << b_dir << "\n";
-                };
+                if (b0s.size() > 1) {
+                    info << "b0: ";
+                    for (auto const &b0 : b0s) {
+                        info << b0 << "\t";
+                    }
+                    info << "\n";
+                    info << "b_dirs:\n";
+                    for (auto const &b_dir : b_dirs) {
+                        info << b_dir << "\n";
+                    }
+                }
             }
         }
     } catch (itk::ExceptionObject &ex) {
