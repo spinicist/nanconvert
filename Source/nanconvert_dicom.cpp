@@ -43,6 +43,8 @@ args::Flag param_file(parser,
                       {'p', "params"});
 args::ValueFlagList<std::string> rename_args(
     parser, "RENAME", "Rename using specified header fields (can be multiple)", {'r', "rename"});
+args::ValueFlag<std::string>
+                             out_name(parser, "OUTNAME", "Use specified output name (overrides RENAME)", {'o', "out"});
 args::ValueFlag<std::string> ext_flag(
     parser, "EXTENSION", "File extension/format to use (default .nii)", {'e', "ext"}, ".nii");
 args::ValueFlag<std::string>
@@ -198,8 +200,12 @@ int main(int argc, char **argv) {
             default:
                 FAIL("Unknown data-type: " << data_type_int);
             }
-            auto const filename = fmt::format(
-                "{:04d}_{}{}{}", series_number, series_description, data_type_string, extension);
+            auto const filename = out_name ? out_name.Get() :
+                                             fmt::format("{:04d}_{}{}{}",
+                                                         series_number,
+                                                         series_description,
+                                                         data_type_string,
+                                                         extension);
             auto writer = itk::ImageFileWriter<Series>::New();
             writer->SetFileName(filename);
             writer->SetInput(image);
