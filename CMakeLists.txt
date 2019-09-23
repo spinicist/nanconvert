@@ -27,6 +27,7 @@ find_package(ITK 5.0.0
                 ITKCommon
                 ITKIOGDCM
                 ITKIOImageBase
+                ITKImageCompose
                 ITKImageGrid
                 ITKImageIO
               REQUIRED )

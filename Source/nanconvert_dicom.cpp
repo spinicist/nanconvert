@@ -14,6 +14,7 @@
 
 #include "fmt/format.h"
 #include "fmt/ostream.h"
+#include "itkComposeImageFilter.h"
 #include "itkGDCMImageIO.h"
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImage.h"
@@ -50,9 +51,29 @@ args::ValueFlag<std::string> ext_flag(
 args::ValueFlag<std::string>
     prefix(parser, "PREFIX", "Add a prefix to output filename", {'p', "prefix"});
 
-using Slice  = itk::Image<float, 2>;
-using Volume = itk::Image<float, 3>;
-using Series = itk::Image<float, 4>;
+using Slice   = itk::Image<float, 2>;
+using Volume  = itk::Image<float, 3>;
+using Series  = itk::Image<float, 4>;
+using XSeries = itk::Image<std::complex<float>, 4>;
+
+template <typename T>
+void write_image(typename T::Pointer image,
+                 std::string const & filename,
+                 float const         sl_thick,
+                 float const         TR) {
+    auto spacing = image->GetSpacing();
+    spacing[2]   = sl_thick;
+    spacing[3]   = TR;
+    image->SetSpacing(spacing);
+
+    auto writer = itk::ImageFileWriter<T>::New();
+    writer->SetFileName(filename);
+    writer->SetInput(image);
+    if (verbose) {
+        fmt::print("Writing: {}\n", filename);
+    }
+    writer->Update();
+}
 
 int main(int argc, char **argv) {
     ParseArgs(parser, argc, argv);
@@ -78,6 +99,10 @@ int main(int argc, char **argv) {
             }
         }
 
+        std::vector<Series::Pointer> all_series;
+        itk::MetaDataDictionary      meta;            // Need this after the loop for writing
+        std::set<float>              slocs, tes, b0s; // Need these after loop
+        std::vector<std::string>     b_dirs;
         for (auto const &seriesID : seriesUIDs) {
             std::vector<std::string> fileNames = name_generator->GetFileNames(seriesID);
             if (verbose) {
@@ -98,7 +123,7 @@ int main(int argc, char **argv) {
             auto dicomIO = itk::GDCMImageIO::New();
             dicomIO->LoadPrivateTagsOn();
             reader->SetImageIO(dicomIO);
-            itk::MetaDataDictionary meta;
+
             for (size_t i = 0; i < fileNames.size(); i++) {
                 reader->SetFileName(fileNames[i]);
                 reader->Update();
@@ -138,17 +163,26 @@ int main(int argc, char **argv) {
                                    ((a.coil == b.coil) && (a.instance < b.instance))))))))))))));
             });
 
-            if (verbose)
-                fmt::print("Extracting unique information...\n");
-            std::set<float> slocs, tes, b0s;
-            for (auto const &d : dicoms) {
-                slocs.insert(d.sloc);
-                tes.insert(d.te);
-                b0s.insert(d.b0);
+            if (slocs.size() == 0) { // Only do this on first series
+                if (verbose)
+                    fmt::print("Extracting unique information...\n");
+
+                for (auto const &d : dicoms) {
+                    slocs.insert(d.sloc);
+                    tes.insert(d.te);
+                    b0s.insert(d.b0);
+                }
             }
+
             auto const vols = fileNames.size() / slocs.size();
             if (verbose)
                 fmt::print("I think there are {} slices and {} volumes...\n", slocs.size(), vols);
+
+            if (b_dirs.size() == 0) {
+                for (size_t v = 0; v < vols; v++) {
+                    b_dirs.push_back(dicoms[v].b_dir);
+                }
+            }
 
             itk::FixedArray<unsigned int, 4> layout;
             layout[0] = layout[1] = 1;
@@ -157,11 +191,9 @@ int main(int argc, char **argv) {
             auto tiler            = itk::TileImageFilter<Slice, Series>::New();
             tiler->SetLayout(layout);
 
-            std::vector<std::string> b_dirs;
-            size_t                   tilerIndex = 0;
+            size_t tilerIndex = 0;
             for (size_t v = 0; v < vols; v++) {
                 size_t dicomIndex = v;
-                b_dirs.push_back(dicoms[dicomIndex].b_dir);
                 for (size_t s = 0; s < slocs.size(); s++) {
                     auto slice = dicoms[dicomIndex].image;
                     tiler->SetInput(tilerIndex++, slice);
@@ -169,72 +201,56 @@ int main(int argc, char **argv) {
                 }
             }
             tiler->Update();
-            auto const series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
-            auto const series_description =
-                SanitiseString(Trim(GetMetaDataFromString<std::string>(meta, "0008|103e", "")));
-            auto const data_type_int = GetMetaDataFromString<int>(meta, "0043|102f", 0);
-            // Can't trust 0018|0050 for zero-filled images
-            auto const slice_thickness =
-                std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1);
-            auto const      TR    = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
-            Series::Pointer image = tiler->GetOutput();
-            image->DisconnectPipeline();
-            auto spacing = image->GetSpacing();
-            spacing[2]   = slice_thickness;
-            spacing[3]   = TR;
-            image->SetSpacing(spacing);
-            std::string data_type_string;
-            switch (data_type_int) {
-            case 0:
-                data_type_string = "";
-                break;
-            case 1:
-                data_type_string = "_phase";
-                break;
-            case 2:
-                data_type_string = "_real";
-                break;
-            case 3:
-                data_type_string = "_imag";
-                break;
-            default:
-                FAIL("Unknown data-type: " << data_type_int);
-            }
-            auto const filename = out_name ? out_name.Get() :
-                                             fmt::format("{:04d}_{}{}{}",
-                                                         series_number,
-                                                         series_description,
-                                                         data_type_string,
-                                                         extension);
-            auto writer = itk::ImageFileWriter<Series>::New();
-            writer->SetFileName(filename);
-            writer->SetInput(image);
-            if (verbose) {
-                fmt::print("Writing: {}\n", filename);
-            }
-            writer->Update();
-            auto const infoname = fmt::format(
-                "{:04d}_{}{}{}", series_number, series_description, data_type_string, ".txt");
+            all_series.push_back(tiler->GetOutput());
+            tiler->GetOutput()->DisconnectPipeline();
+        }
 
-            if (param_file) {
-                std::ofstream info(infoname);
-                info << "TR: " << TR << "\n";
-                info << "TE: ";
-                for (auto const &te : tes) {
-                    info << te << "\t";
+        auto const series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
+        auto const series_description =
+            SanitiseString(Trim(GetMetaDataFromString<std::string>(meta, "0008|103e", "")));
+        auto const filename =
+            out_name ? out_name.Get() :
+                       fmt::format("{:04d}_{}{}", series_number, series_description, extension);
+
+        auto const TR = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
+        // Can't trust 0018|0050 for zero-filled images
+        float const slice_thickness =
+            std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1);
+
+        // Assume 2 series is real/imaginary, otherwise only magnitude
+        if (all_series.size() == 2) {
+            auto to_complex = itk::ComposeImageFilter<Series, XSeries>::New();
+            to_complex->SetInput(0, all_series.at(0));
+            to_complex->SetInput(1, all_series.at(1));
+            to_complex->Update();
+            XSeries::Pointer x = to_complex->GetOutput();
+            x->DisconnectPipeline();
+            write_image<XSeries>(x, filename, slice_thickness, TR);
+        } else {
+            Series::Pointer m = all_series.at(0);
+            write_image<Series>(m, filename, slice_thickness, TR);
+        }
+
+        auto const infoname = fmt::format("{:04d}_{}{}", series_number, series_description, ".txt");
+
+        if (param_file) {
+            std::ofstream info(infoname);
+            info << "TR: " << TR << "\n";
+            info << "TE: ";
+            for (auto const &te : tes) {
+                info << te << "\t";
+            }
+
+            info << "\n";
+            if (b0s.size() > 1) {
+                info << "b0: ";
+                for (auto const &b0 : b0s) {
+                    info << b0 << "\t";
                 }
-
                 info << "\n";
-                if (b0s.size() > 1) {
-                    info << "b0: ";
-                    for (auto const &b0 : b0s) {
-                        info << b0 << "\t";
-                    }
-                    info << "\n";
-                    info << "b_dirs:\n";
-                    for (auto const &b_dir : b_dirs) {
-                        info << b_dir << "\n";
-                    }
+                info << "b_dirs:\n";
+                for (auto const &b_dir : b_dirs) {
+                    info << b_dir << "\n";
                 }
             }
         }
