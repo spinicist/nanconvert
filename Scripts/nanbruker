@@ -71,9 +71,14 @@ while test ${#} -gt 0; do
         VISU_PARS="$IMG_DIR/visu_pars"
         if [[ -s "$IMG" && -f "$VISU_PARS" ]]; then
             PROTOCOL=$( grep -A1 "\#\#\$VisuAcquisitionProtocol" $VISU_PARS | tail -n1 )
-            if [[ -z "$LOCALIZERS" && $PROTOCOL == *"Localizer"* ]]; then
+            DIMENSION=$( grep "\#\#\$VisuCoreDim=" $VISU_PARS | cut -d '=' -f 2 )
+            if [[ -z "$LOCALIZERS" && $PROTOCOL == *"Localiz"* ]]; then
                 if [[ -z "$QUEUE" ]]; then
                     echo "$IMG is a localizer, skipping"
+                fi
+            elif  [[ $DIMENSION == "1" ]]; then
+                if [[ -z "$QUEUE" ]]; then
+                    echo "$IMG is 1-dimensional, skipping"
                 fi
             else
                 if [[ -z "$QUEUE" ]]; then
