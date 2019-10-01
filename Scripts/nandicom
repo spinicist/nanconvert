@@ -12,14 +12,14 @@ Options (must go first):
     -v     : Enable verbose mode
 "
 
-EXT=".nii.gz"
+EXT="-e .nii.gz"
 SERIES=""
 OUT_DIR="$PWD"
 VERBOSE=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 while getopts "e:o:s:vz" opt; do
     case $opt in
-        e) EXT="$OPTARG";;
+        e) EXT="-e $OPTARG";;
         o) OUT_DIR="$OPTARG";;
         s) SERIES="$OPTARG";;
         v) VERBOSE="-v";;
