@@ -104,29 +104,26 @@ int main(int argc, char **argv) {
         std::set<float>              slocs, tes, b0s; // Need these after loop
         std::vector<std::string>     b_dirs;
         for (auto const &seriesID : seriesUIDs) {
-            std::vector<std::string> fileNames = name_generator->GetFileNames(seriesID);
+            std::vector<std::string> allNames = name_generator->GetFileNames(seriesID);
             if (verbose) {
-                fmt::print("Reading {}\nContains {} slices\n", seriesID, fileNames.size());
+                fmt::print("Reading {}\nContains {} slices\n", seriesID, allNames.size());
             }
-            if (fileNames.size() == 0) {
+            if (allNames.size() == 0) {
                 continue;
             }
             struct dicom_entry {
-                Slice::Pointer image;
+                std::string path;
                 float          sloc, te; // Position
                 int            b0, temporal, instance;
                 std::string    casl, coil, b_dir;
             };
-            std::vector<dicom_entry> dicoms(fileNames.size());
+            std::vector<dicom_entry> dicoms(allNames.size());
 
-            auto reader  = itk::ImageFileReader<Slice>::New();
             auto dicomIO = itk::GDCMImageIO::New();
             dicomIO->LoadPrivateTagsOn();
-            reader->SetImageIO(dicomIO);
-
-            for (size_t i = 0; i < fileNames.size(); i++) {
-                reader->SetFileName(fileNames[i]);
-                reader->Update();
+            for (size_t i = 0; i < allNames.size(); i++) {
+                dicomIO->SetFileName(allNames[i]);
+                dicomIO->ReadImageInformation();
                 meta             = dicomIO->GetMetaDataDictionary();
                 auto const sloc  = GetMetaDataFromString<float>(meta, "0020|1041", 0);
                 auto const te    = GetMetaDataFromString<float>(meta, "0018|0081", 0);
@@ -140,8 +137,7 @@ int main(int argc, char **argv) {
                 auto const casl     = GetMetaDataFromString<std::string>(meta, "0008|0008", "0");
                 auto const coil     = GetMetaDataFromString<std::string>(meta, "0018|1250", "0");
                 dicoms[i]           = {
-                    reader->GetOutput(), sloc, te, b0, temporal, instance, casl, coil, b_dir};
-                reader->GetOutput()->DisconnectPipeline();
+                    allNames[i], sloc, te, b0, temporal, instance, casl, coil, b_dir};
             }
 
             if (verbose)
@@ -174,7 +170,7 @@ int main(int argc, char **argv) {
                 }
             }
 
-            auto const vols = fileNames.size() / slocs.size();
+            auto const vols = allNames.size() / slocs.size();
             if (verbose)
                 fmt::print("I think there are {} slices and {} volumes...\n", slocs.size(), vols);
 
@@ -185,24 +181,39 @@ int main(int argc, char **argv) {
             }
 
             itk::FixedArray<unsigned int, 4> layout;
-            layout[0] = layout[1] = 1;
-            layout[2]             = slocs.size();
+            layout[0] = layout[1] = layout[2] = 1;
             layout[3]             = vols;
-            auto tiler            = itk::TileImageFilter<Slice, Series>::New();
+            auto tiler            = itk::TileImageFilter<Volume, Series>::New();
             tiler->SetLayout(layout);
-
-            size_t tilerIndex = 0;
+            Volume::DirectionType vdir;
             for (size_t v = 0; v < vols; v++) {
                 size_t dicomIndex = v;
+                std::vector<std::string> volNames(slocs.size());
                 for (size_t s = 0; s < slocs.size(); s++) {
-                    auto slice = dicoms[dicomIndex].image;
-                    tiler->SetInput(tilerIndex++, slice);
+                    volNames[s] = dicoms[dicomIndex].path;
                     dicomIndex += vols;
                 }
+                auto reader = itk::ImageSeriesReader<Volume>::New();
+                reader->SetImageIO(dicomIO);
+                reader->SetFileNames(volNames);
+                reader->ForceOrthogonalDirectionOff();
+                reader->Update();
+                vdir = reader->GetOutput()->GetDirection();
+                tiler->SetInput(v, reader->GetOutput());
+                std::cout << vdir << "\n";
             }
             tiler->Update();
-            all_series.push_back(tiler->GetOutput());
-            tiler->GetOutput()->DisconnectPipeline();
+            auto const &series = tiler->GetOutput();
+            Series::DirectionType sdir = series->GetDirection();
+            for (int ii =0; ii < 3; ii++) {
+                for (int jj =0; jj < 3; jj++) {
+                    sdir[ii][jj] = vdir[ii][jj];
+                }
+            }
+            series->SetDirection(sdir);
+            all_series.push_back(series);
+            series->DisconnectPipeline();
+            std::cout << series->GetDirection() << "\n";
         }
 
         auto const series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
