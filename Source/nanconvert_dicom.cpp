@@ -21,7 +21,7 @@
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
 #include "itkImageSeriesReader.h"
-#include "itkTileImageFilter.h"
+#include "itkJoinSeriesImageFilter.h"
 
 #include "Args.h"
 #include "IO.h"
@@ -180,12 +180,7 @@ int main(int argc, char **argv) {
                 }
             }
 
-            itk::FixedArray<unsigned int, 4> layout;
-            layout[0] = layout[1] = layout[2] = 1;
-            layout[3]             = vols;
-            auto tiler            = itk::TileImageFilter<Volume, Series>::New();
-            tiler->SetLayout(layout);
-            Volume::DirectionType vdir;
+            auto joiner = itk::JoinSeriesImageFilter<Volume, Series>::New();
             for (size_t v = 0; v < vols; v++) {
                 size_t dicomIndex = v;
                 std::vector<std::string> volNames(slocs.size());
@@ -198,22 +193,10 @@ int main(int argc, char **argv) {
                 reader->SetFileNames(volNames);
                 reader->ForceOrthogonalDirectionOff();
                 reader->Update();
-                vdir = reader->GetOutput()->GetDirection();
-                tiler->SetInput(v, reader->GetOutput());
-                std::cout << vdir << "\n";
+                joiner->SetInput(v, reader->GetOutput());
             }
-            tiler->Update();
-            auto const &series = tiler->GetOutput();
-            Series::DirectionType sdir = series->GetDirection();
-            for (int ii =0; ii < 3; ii++) {
-                for (int jj =0; jj < 3; jj++) {
-                    sdir[ii][jj] = vdir[ii][jj];
-                }
-            }
-            series->SetDirection(sdir);
-            all_series.push_back(series);
-            series->DisconnectPipeline();
-            std::cout << series->GetDirection() << "\n";
+            joiner->Update();
+            all_series.push_back(joiner->GetOutput());
         }
 
         auto const series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
