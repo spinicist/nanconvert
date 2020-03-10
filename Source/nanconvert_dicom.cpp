@@ -100,6 +100,7 @@ int main(int argc, char **argv) {
         }
 
         std::vector<Series::Pointer> all_series;
+        std::vector<int>             all_types;
         itk::MetaDataDictionary      meta;            // Need this after the loop for writing
         std::set<float>              slocs, tes, b0s; // Need these after loop
         std::vector<std::string>     b_dirs;
@@ -113,9 +114,9 @@ int main(int argc, char **argv) {
             }
             struct dicom_entry {
                 std::string path;
-                float          sloc, te; // Position
-                int            b0, temporal, instance;
-                std::string    casl, coil, b_dir;
+                float       sloc, te; // Position
+                int         b0, temporal, instance;
+                std::string casl, coil, b_dir;
             };
             std::vector<dicom_entry> dicoms(allNames.size());
 
@@ -136,8 +137,7 @@ int main(int argc, char **argv) {
                 auto const instance = GetMetaDataFromString<int>(meta, "0020|0013", 0);
                 auto const casl     = GetMetaDataFromString<std::string>(meta, "0008|0008", "0");
                 auto const coil     = GetMetaDataFromString<std::string>(meta, "0018|1250", "0");
-                dicoms[i]           = {
-                    allNames[i], sloc, te, b0, temporal, instance, casl, coil, b_dir};
+                dicoms[i] = {allNames[i], sloc, te, b0, temporal, instance, casl, coil, b_dir};
             }
 
             if (verbose)
@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
 
             auto joiner = itk::JoinSeriesImageFilter<Volume, Series>::New();
             for (size_t v = 0; v < vols; v++) {
-                size_t dicomIndex = v;
+                size_t                   dicomIndex = v;
                 std::vector<std::string> volNames(slocs.size());
                 for (size_t s = 0; s < slocs.size(); s++) {
                     volNames[s] = dicoms[dicomIndex].path;
@@ -197,6 +197,7 @@ int main(int argc, char **argv) {
             }
             joiner->Update();
             all_series.push_back(joiner->GetOutput());
+            all_types.push_back(GetMetaDataFromString<int>(meta, "0043|102f", 0));
         }
 
         auto const series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
@@ -211,18 +212,32 @@ int main(int argc, char **argv) {
         float const slice_thickness =
             std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1);
 
-        // Assume 2 series is real/imaginary, otherwise only magnitude
-        if (all_series.size() == 2) {
-            auto to_complex = itk::ComposeImageFilter<Series, XSeries>::New();
-            to_complex->SetInput(0, all_series.at(0));
-            to_complex->SetInput(1, all_series.at(1));
-            to_complex->Update();
-            XSeries::Pointer x = to_complex->GetOutput();
-            x->DisconnectPipeline();
-            write_image<XSeries>(x, filename, slice_thickness, TR);
-        } else {
-            Series::Pointer m = all_series.at(0);
-            write_image<Series>(m, filename, slice_thickness, TR);
+        std::set<int> processed_indices;
+        for (size_t i = 0; i < all_series.size(); i++) {
+            if (all_types[i] == 2) { // Real series
+                if (i + 1 < all_series.size() && all_types[i + 1] == 3) {
+                    // We have an imaginary series as well, convert to complex
+                    auto to_complex = itk::ComposeImageFilter<Series, XSeries>::New();
+                    to_complex->SetInput(0, all_series.at(i));
+                    to_complex->SetInput(1, all_series.at(i + 1));
+                    to_complex->Update();
+                    XSeries::Pointer x = to_complex->GetOutput();
+                    x->DisconnectPipeline();
+                    write_image<XSeries>(x, filename, slice_thickness, TR);
+                } else {
+                    Series::Pointer m = all_series.at(i);
+                    write_image<Series>(m, filename, slice_thickness, TR);
+                }
+                processed_indices.insert(i);
+                processed_indices.insert(i + 1);
+            } else {
+                // Could be anything, write it if we haven't done so already
+                if (processed_indices.find(i) == processed_indices.end()) {
+                    Series::Pointer m = all_series.at(i);
+                    write_image<Series>(m, filename, slice_thickness, TR);
+                    processed_indices.insert(i);
+                }
+            }
         }
 
         auto const infoname = fmt::format("{:04d}_{}{}", series_number, series_description, ".txt");
