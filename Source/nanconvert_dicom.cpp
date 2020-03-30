@@ -159,15 +159,17 @@ int main(int argc, char **argv) {
                                    ((a.coil == b.coil) && (a.instance < b.instance))))))))))))));
             });
 
-            if (slocs.size() == 0) { // Only do this on first series
-                if (verbose)
-                    fmt::print("Extracting unique information...\n");
+            if (verbose)
+                fmt::print("Extracting unique information...\n");
 
-                for (auto const &d : dicoms) {
-                    slocs.insert(d.sloc);
-                    tes.insert(d.te);
-                    b0s.insert(d.b0);
-                }
+            // Some weird GE series can have differing numbers of slices
+            slocs.clear();
+            tes.clear();
+            b0s.clear();
+            for (auto const &d : dicoms) {
+                slocs.insert(d.sloc);
+                tes.insert(d.te);
+                b0s.insert(d.b0);
             }
 
             auto const vols = allNames.size() / slocs.size();
@@ -203,9 +205,6 @@ int main(int argc, char **argv) {
         auto const series_number = GetMetaDataFromString<int>(meta, "0020|0011", 0);
         auto const series_description =
             SanitiseString(Trim(GetMetaDataFromString<std::string>(meta, "0008|103e", "")));
-        auto const filename =
-            out_name ? out_name.Get() :
-                       fmt::format("{:04d}_{}{}", series_number, series_description, extension);
 
         auto const TR = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
         // Can't trust 0018|0050 for zero-filled images
@@ -214,9 +213,16 @@ int main(int argc, char **argv) {
 
         std::set<int> processed_indices;
         for (size_t i = 0; i < all_series.size(); i++) {
+            std::string const tag = all_series.size() > 1 ? fmt::format("{}", i+1) : "";
+            auto const filename =
+                out_name ? out_name.Get() :
+                        fmt::format("{:04d}_{}{}{}", series_number, series_description, tag, extension);
             if (all_types[i] == 2) { // Real series
-                if (i + 1 < all_series.size() && all_types[i + 1] == 3) {
-                    // We have an imaginary series as well, convert to complex
+                if ((i + 1 < all_series.size()) &&
+                    (all_types[i + 1] == 3) &&
+                    (all_series.at(i)->GetOrigin().GetVnlVector().is_equal(
+                        all_series.at(i+1)->GetOrigin().GetVnlVector(),2.e-6))) {
+                    // We have matching real/imaginary series, convert to complex
                     auto to_complex = itk::ComposeImageFilter<Series, XSeries>::New();
                     to_complex->SetInput(0, all_series.at(i));
                     to_complex->SetInput(1, all_series.at(i + 1));
