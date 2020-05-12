@@ -211,17 +211,16 @@ int main(int argc, char **argv) {
         float const slice_thickness =
             std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1);
 
+        auto const filename =
+            out_name ? out_name.Get() : fmt::format("{:04d}_{}", series_number, series_description);
         std::set<int> processed_indices;
         for (size_t i = 0; i < all_series.size(); i++) {
-            std::string const tag = all_series.size() > 1 ? fmt::format("{}", i+1) : "";
-            auto const filename =
-                out_name ? out_name.Get() :
-                        fmt::format("{:04d}_{}{}{}", series_number, series_description, tag, extension);
+            std::string const tag = all_series.size() > 1 ? fmt::format("{}", i + 1) : "";
             if (all_types[i] == 2) { // Real series
-                if ((i + 1 < all_series.size()) &&
-                    (all_types[i + 1] == 3) &&
+                if ((i + 1 < all_series.size()) && (all_types[i + 1] == 3) &&
                     (all_series.at(i)->GetOrigin().GetVnlVector().is_equal(
-                        all_series.at(i+1)->GetOrigin().GetVnlVector(),2.e-6))) {
+                        all_series.at(i + 1)->GetOrigin().GetVnlVector(), 2.e-6))) {
+
                     // We have matching real/imaginary series, convert to complex
                     auto to_complex = itk::ComposeImageFilter<Series, XSeries>::New();
                     to_complex->SetInput(0, all_series.at(i));
@@ -229,18 +228,19 @@ int main(int argc, char **argv) {
                     to_complex->Update();
                     XSeries::Pointer x = to_complex->GetOutput();
                     x->DisconnectPipeline();
-                    write_image<XSeries>(x, filename, slice_thickness, TR);
+                    write_image<XSeries>(x, filename + extension, slice_thickness, TR);
                 } else {
                     Series::Pointer m = all_series.at(i);
-                    write_image<Series>(m, filename, slice_thickness, TR);
+                    write_image<Series>(m, filename + tag + extension, slice_thickness, TR);
                 }
                 processed_indices.insert(i);
                 processed_indices.insert(i + 1);
             } else {
                 // Could be anything, write it if we haven't done so already
                 if (processed_indices.find(i) == processed_indices.end()) {
+
                     Series::Pointer m = all_series.at(i);
-                    write_image<Series>(m, filename, slice_thickness, TR);
+                    write_image<Series>(m, filename + tag + extension, slice_thickness, TR);
                     processed_indices.insert(i);
                 }
             }
