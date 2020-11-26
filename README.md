@@ -23,28 +23,10 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 # Installation #
 
-## Dependencies & Requirements ##
-
-1. A C++11 compliant compiler (GCC 4.8.0+, Clang 3.1+)
-2. CMake version 2.8.1 or higher (http://www.cmake.org)
-3. ITK version 4.13.0 (http://www.itk.org)
-
-Optional - I recommend http://www.ninja-build.org instead of plain `make`
-
-## Compilation ##
-
-1. Install or compile ITK version 4.13 (as of 2017/11/21, this means compiling
-   the development version.
-2. Type the following commands: 
-   `git clone --recursive https://github.com/spinicist/nanconvert.git`
-   `cd nanconvert`
-   `git submodule init; git submodule update`
-3. Create a build directory and `cd` to it.
-4. Type `ccmake path_to_nanconvert_folder`
-5. Follow the on screen instructions. In particular make sure the path to ITK
-   is specified correctly, then press `c` and `g` to configure and generate the
-   build files, then `q` to quit.
-6. Type `make -j`, and optionally `make install` (or `ninja install`)
+MacOS and Linux binaries are available from 
+http://github.com/spinicist/nanconvert/releases in .tar.gz format. Unpack the
+archives using `tar -xzf nanconvert-platform.tar.gz` and move the contained
+files to somewhere on $PATH.
 
 # Usage #
 
