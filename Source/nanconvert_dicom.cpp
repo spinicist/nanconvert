@@ -209,7 +209,8 @@ int main(int argc, char **argv) {
         auto const TR = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
         // Can't trust 0018|0050 for zero-filled images
         float const slice_thickness =
-            std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1);
+            slocs.size() > 1 ? std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1) :
+                               1.0;
 
         auto const filename =
             out_name ? out_name.Get() : fmt::format("{:04d}_{}", series_number, series_description);
