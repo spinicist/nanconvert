@@ -1,0 +1,9 @@
+{
+    "name": "nanconvert",
+    "version-string": "1.0",
+    "dependencies": [
+        "args",
+        "fmt",
+        "itk"
+    ]
+}
