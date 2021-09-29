@@ -1,0 +1,20 @@
+#$ -S /bin/bash
+#$ -V                        # Export environment variables to the job
+#$ -b y                      # Might be binary job - otherwise script may not be found
+#$ -cwd                      # Execute from current working directory, not home
+set -eu
+
+INDEX_FILE="$1"
+SRC_DIR="$2"
+EXT="$3"
+VERBOSE="$4"
+
+IMG=$( awk "FNR==$SGE_TASK_ID" $INDEX_FILE )
+STEM=$( basename "$IMG" .tar.bz2 )
+echo "Converting $STEM"
+cp "$SRC_DIR/$STEM.tar.bz2" "$STEM.tar.bz2"
+bunzip2 --force "$STEM.tar.bz2"
+tar -xf "$STEM.tar"
+DICOMDIR="${STEM##*.}"
+nanconvert_dicom "$DICOMDIR" $EXT $VERBOSE
+rm -r "$DICOMDIR" "$STEM.tar"
