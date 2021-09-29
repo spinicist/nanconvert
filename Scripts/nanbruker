@@ -12,7 +12,7 @@ Options (must go first):
     -m     : Copy method file
     -p P   : Convert only the sequences that match pattern P
     -o DIR : Write output directories to this directory
-    -q Q   : Submit jobs to the specified SGE queu
+    -q Q   : Submit jobs to the specified SGE queue
     -s     : Scale images by 10 for compatibility with SPM etc.
     -v     : More verbose output.
     -z     : Create zipped (.nii.gz) files
