@@ -19,7 +19,7 @@ SERIES=""
 OUT_DIR="$PWD"
 VERBOSE=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-while getopts "e:o:s:vz" opt; do
+while getopts "e:o:q:s:vz" opt; do
     case $opt in
         e) EXT="-e $OPTARG";;
         o) OUT_DIR="$OPTARG";;
@@ -61,7 +61,9 @@ while test ${#} -gt 0; do
     echo "Converting study $BASE_DIR"
 
     if [[ -n "$QUEUE" ]]; then
-        INDEX_FILE="$PWD/.index"
+        SGE_DIR="$PWD/.sge"
+        mkdir -p "$SGE_DIR"
+        INDEX_FILE="$SGE_DIR/index"
         > $INDEX_FILE
     fi
 
@@ -81,8 +83,7 @@ while test ${#} -gt 0; do
     if [[ -n "$QUEUE" ]]; then
         COUNT="$( wc -l < $INDEX_FILE )"
         if [[ "$COUNT" -gt 0 ]]; then
-            echo "Found $COUNT images to convert"
-            qsub -t 1:$COUNT -o ${PWD}/ -e ${PWD}/ -j y $QUEUE $SCRIPT_DIR/nanbruker_sge.qsub "$SRC_DIR $EXT $VERBOSE"
+            qsub -t 1:$COUNT -o "${SGE_DIR}/" -e "${SGE_DIR}/" -j y -q $QUEUE $SCRIPT_DIR/nandicom_sge.qsub "$INDEX_FILE $SRC_DIR $EXT $VERBOSE"
         else
             echo "No files to convert in index file, not submitting a job"
         fi

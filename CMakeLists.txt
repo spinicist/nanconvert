@@ -11,11 +11,7 @@ include(CheckCXXCompilerFlag)
 include(CMakeToolsHelpers OPTIONAL)
 include(CMakePrintHelpers)
 
-include(${PROJECT_SOURCE_DIR}/CMake/BuildType.cmake)
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++" CACHE INTERNAL "" FORCE)
-endif()
-add_compile_options("-Wall" "-Wextra" "-Wshadow" "-ftemplate-backtrace-limit=30")
+include(${PROJECT_SOURCE_DIR}/cmake/BuildType.cmake)
 
 find_package(args CONFIG REQUIRED)
 find_package(fmt REQUIRED CONFIG)
@@ -34,7 +30,6 @@ include(${ITK_USE_FILE})
 set(SRC_DIR "${PROJECT_SOURCE_DIR}/Source")
 add_library(Convert STATIC ${SRC_DIR}/IO.cpp ${SRC_DIR}/Util.cpp)
 target_link_libraries(Convert ${ITK_LIBRARIES})
-cmake_print_variables(${ITK_LIBRARIES})
 
 add_executable(nanconvert_bruker ${SRC_DIR}/nanconvert_bruker.cpp)
 target_link_libraries(nanconvert_bruker
@@ -55,7 +50,7 @@ target_link_libraries(nanconvert_dicom
 install(TARGETS nanconvert_dicom RUNTIME DESTINATION bin)
 
 set(SCRIPTS_DIR Scripts)
-set(SCRIPTS nanbruker nanbruker_sge.qsub nandicom)
+set(SCRIPTS nanbruker nanbruker_sge.qsub nandicom nandicom_sge.qsub)
 foreach(SCRIPT ${SCRIPTS})
     INSTALL(FILES ${SCRIPTS_DIR}/${SCRIPT} 
              DESTINATION bin 

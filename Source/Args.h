@@ -18,12 +18,12 @@
 void ParseArgs(args::ArgumentParser &parser, int argc, char **argv) {
     try {
         parser.ParseCLI(argc, argv);
-    } catch (args::Help) {
+    } catch (args::Help const &) {
         std::cout << parser;
         exit(EXIT_SUCCESS);
-    } catch (args::ParseError e) {
+    } catch (args::ParseError const &e) {
         FAIL(e.what() << std::endl << parser);
-    } catch (args::ValidationError e) {
+    } catch (args::ValidationError const &e) {
         FAIL(e.what() << std::endl << parser);
     }
 }

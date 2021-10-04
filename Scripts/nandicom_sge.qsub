@@ -1,18 +1,19 @@
 #$ -S /bin/bash
 #$ -V                        # Export environment variables to the job
+#$ -l h_vmem=8G              # Should not need much memory for this
+#$ -l h=!grid07              # Exclude grid07 as it has an old CPU
 #$ -b y                      # Might be binary job - otherwise script may not be found
 #$ -cwd                      # Execute from current working directory, not home
-set -eu
-
+set -eux
 INDEX_FILE="$1"
 SRC_DIR="$2"
 EXT="$3"
 VERBOSE="$4"
-
+echo "Running on $HOSTNAME"
 IMG=$( awk "FNR==$SGE_TASK_ID" $INDEX_FILE )
 STEM=$( basename "$IMG" .tar.bz2 )
 echo "Converting $STEM"
-cp "$SRC_DIR/$STEM.tar.bz2" "$STEM.tar.bz2"
+cp "$IMG" "$STEM.tar.bz2"
 bunzip2 --force "$STEM.tar.bz2"
 tar -xf "$STEM.tar"
 DICOMDIR="${STEM##*.}"
