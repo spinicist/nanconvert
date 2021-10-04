@@ -19,6 +19,7 @@ find_package(ITK 5.0.0
               COMPONENTS
                 ITKCommon
                 ITKIOImageBase
+                ITKIOBruker
                 ITKIOGDCM
                 ITKIONIFTI
                 ITKImageCompose
