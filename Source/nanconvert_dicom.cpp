@@ -45,7 +45,7 @@ args::Flag param_file(parser,
 args::ValueFlagList<std::string> rename_args(
     parser, "RENAME", "Rename using specified header fields (can be multiple)", {'r', "rename"});
 args::ValueFlag<std::string>
-                             out_name(parser, "OUTNAME", "Use specified output name (overrides RENAME)", {'o', "out"});
+    out_name(parser, "OUTNAME", "Use specified output name (overrides RENAME)", {'o', "out"});
 args::ValueFlag<std::string> ext_flag(
     parser, "EXTENSION", "File extension/format to use (default .nii)", {'e', "ext"}, ".nii");
 args::ValueFlag<std::string>
@@ -99,11 +99,14 @@ int main(int argc, char **argv) {
             }
         }
 
+        struct Vec3 {
+            float x, y, z;
+        };
         std::vector<Series::Pointer> all_series;
         std::vector<int>             all_types;
         itk::MetaDataDictionary      meta;            // Need this after the loop for writing
         std::set<float>              slocs, tes, b0s; // Need these after loop
-        std::vector<std::string>     b_dirs;
+        std::vector<Vec3>            b_dirs;
         for (auto const &seriesID : seriesUIDs) {
             std::vector<std::string> allNames = name_generator->GetFileNames(seriesID);
             if (verbose) {
@@ -116,7 +119,8 @@ int main(int argc, char **argv) {
                 std::string path;
                 float       sloc, te; // Position
                 int         b0, temporal, instance;
-                std::string casl, coil, b_dir;
+                Vec3        b_dir;
+                std::string casl, coil;
             };
             std::vector<dicom_entry> dicoms(allNames.size());
 
@@ -125,19 +129,18 @@ int main(int argc, char **argv) {
             for (size_t i = 0; i < allNames.size(); i++) {
                 dicomIO->SetFileName(allNames[i]);
                 dicomIO->ReadImageInformation();
-                meta             = dicomIO->GetMetaDataDictionary();
-                auto const sloc  = GetMetaDataFromString<float>(meta, "0020|1041", 0);
-                auto const te    = GetMetaDataFromString<float>(meta, "0018|0081", 0);
-                auto const b0    = GetMetaDataFromString<int>(meta, "0043|1039", 0);
-                auto const b_dir = GetMetaDataFromString<std::string>(meta, "0019|10bb", "0") +
-                                   "," +
-                                   GetMetaDataFromString<std::string>(meta, "0019|10bc", "0") +
-                                   "," + GetMetaDataFromString<std::string>(meta, "0019|10bd", "0");
-                auto const temporal = GetMetaDataFromString<int>(meta, "0020|0100", 0);
-                auto const instance = GetMetaDataFromString<int>(meta, "0020|0013", 0);
-                auto const casl     = GetMetaDataFromString<std::string>(meta, "0008|0008", "0");
-                auto const coil     = GetMetaDataFromString<std::string>(meta, "0018|1250", "0");
-                dicoms[i] = {allNames[i], sloc, te, b0, temporal, instance, casl, coil, b_dir};
+                meta               = dicomIO->GetMetaDataDictionary();
+                dicoms[i].path     = allNames[i];
+                dicoms[i].sloc     = GetMetaDataFromString<float>(meta, "0020|1041", 0);
+                dicoms[i].te       = GetMetaDataFromString<float>(meta, "0018|0081", 0);
+                dicoms[i].b0       = GetMetaDataFromString<int>(meta, "0043|1039", 0);
+                dicoms[i].b_dir.x  = GetMetaDataFromString<float>(meta, "0019|10bb", 0);
+                dicoms[i].b_dir.y  = GetMetaDataFromString<float>(meta, "0019|10bc", 0);
+                dicoms[i].b_dir.z  = GetMetaDataFromString<float>(meta, "0019|10bd", 0);
+                dicoms[i].temporal = GetMetaDataFromString<int>(meta, "0020|0100", 0);
+                dicoms[i].instance = GetMetaDataFromString<int>(meta, "0020|0013", 0);
+                dicoms[i].casl     = GetMetaDataFromString<std::string>(meta, "0008|0008", "0");
+                dicoms[i].coil     = GetMetaDataFromString<std::string>(meta, "0018|1250", "0");
             }
 
             if (verbose)
@@ -146,17 +149,12 @@ int main(int argc, char **argv) {
                 return (a.sloc < b.sloc) ||
                        ((a.sloc == b.sloc) &&
                         ((a.te < b.te) ||
-                         ((a.te == b.te) &&
-                          ((a.b0 < b.b0) ||
-                           ((a.b0 == b.b0) &&
-                            ((a.b_dir == b.b_dir) &&
-                             ((a.b_dir < b.b_dir) ||
-                              ((a.casl < b.casl) ||
-                               ((a.casl == b.casl) &&
-                                ((a.temporal < b.temporal) ||
-                                 ((a.temporal == b.temporal) &&
-                                  ((a.coil < b.coil) ||
-                                   ((a.coil == b.coil) && (a.instance < b.instance))))))))))))));
+                         ((a.te == b.te) && ((a.instance < b.instance) ||
+                                             ((a.instance == b.instance) &&
+                                              ((a.casl < b.casl) || ((a.casl == b.casl) &&
+                                                                     ((a.temporal < b.temporal) ||
+                                                                      ((a.temporal == b.temporal) &&
+                                                                       ((a.coil < b.coil)))))))))));
             });
 
             if (verbose)
@@ -266,7 +264,7 @@ int main(int argc, char **argv) {
                 info << "\n";
                 info << "b_dirs:\n";
                 for (auto const &b_dir : b_dirs) {
-                    info << b_dir << "\n";
+                    info << fmt::format("{},{},{}\n", b_dir.x, b_dir.y, b_dir.z);
                 }
             }
         }
