@@ -38,10 +38,9 @@ args::Positional<std::string> input_arg(parser, "INPUT", "Input directory");
 args::HelpFlag help(parser, "HELP", "Show this help menu", {'h', "help"});
 args::Flag     verbose(parser, "VERBOSE", "Print more information", {'v', "verbose"});
 args::Flag double_precision(parser, "DOUBLE", "Write out double precision files", {'d', "double"});
-args::Flag param_file(parser,
-                      "PARAMS",
-                      "Write out text file with parameters (TE/TR etc.)",
-                      {'p', "params"});
+args::Flag
+    param_file(parser, "PARAMS", "Write out text file with parameters (TE/TR etc.)", {"params"});
+args::Flag split_all(parser, "S", "Split all series (do not convert to complex)", {'s', "split"});
 args::ValueFlagList<std::string> rename_args(
     parser, "RENAME", "Rename using specified header fields (can be multiple)", {'r', "rename"});
 args::ValueFlag<std::string>
@@ -215,7 +214,7 @@ int main(int argc, char **argv) {
         std::set<int> processed_indices;
         for (size_t i = 0; i < all_series.size(); i++) {
             std::string const tag = all_series.size() > 1 ? fmt::format("{}", i + 1) : "";
-            if (all_types[i] == 2) { // Real series
+            if (!split_all && all_types[i] == 2) { // Real series
                 if ((i + 1 < all_series.size()) && (all_types[i + 1] == 3) &&
                     (all_series.at(i)->GetOrigin().GetVnlVector().is_equal(
                         all_series.at(i + 1)->GetOrigin().GetVnlVector(), 2.e-6))) {
