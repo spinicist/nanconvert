@@ -4,7 +4,6 @@ on: push
 
 env:
   BUILD_TYPE: Release
-  VCPKG_PATH: ${{github.workspace}}/vcpkg
 
 jobs:
   build:
@@ -16,19 +15,20 @@ jobs:
         config:
         - {
           name: "Ubuntu GCC", artifact: "nanconvert-linux.tar.gz",
-          os: ubuntu-16.04,
-          cc: "gcc-9", cxx: "g++-9"
+          os: ubuntu-18.04,
+          cc: "gcc-10", cxx: "g++-10"
         }
         - {
           name: "macOS", artifact: "nanconvert-macos.tar.gz",
-          os: macos-10.15,
+          os: macos-11,
           cc: "clang", cxx: "clang++"
         }
 
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          fetch-depth: 0
+          submodules: 'recursive'
 
       - name: Install GNU tar
         shell: bash
@@ -37,28 +37,32 @@ jobs:
             brew install gnu-tar
           fi
 
-      - name: vcpkg
-        env:
-          CC: ${{matrix.config.cc}}
-          CXX: ${{matrix.config.cxx}}
-        uses: lukka/run-vcpkg@v5
+      - name: Restore vcpkg binary cache
+        id: cache
+        uses: actions/cache@v2
         with:
-          setupOnly: true
+          path: ~/.cache/vcpkg/
+          key: ${{runner.os}}-${{hashFiles( 'vcpkg.json' ) }}-${{hashFiles( '.git/modules/cmake/HEAD' )}}-vcpkg-cache
 
-      - name: CMake
-        uses: lukka/run-cmake@v2
-        id: runcmake
+
+      - name: Build
+        shell: bash
         env:
           CC: ${{matrix.config.cc}}
           CXX: ${{matrix.config.cxx}}
-        with:
-          cmakeListsTxtPath: '${{github.workspace}}/CMakeLists.txt'
-          useVcpkgToolchainFile: true
-          buildDirectory: build
-          cmakeBuildType: Release
+        run: |
+          TC="${{github.workspace}}/cmake/toolchain.cmake"
+          export VCPKG_OVERLAY_TRIPLETS="${{github.workspace}}/cmake/triplets"
+          export FLAGS="ci"
+          cd ${{github.workspace}}
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$TC"
+          cmake --build build
 
       - name: Save release
         run: |
+          cd ${{github.workspace}}
           mv ./build/{nanconvert_bruker,nanconvert_dicom} ./
           cp Scripts/{nanbruker,nanbruker_sge.qsub,nandicom} ./
           ALL="nanconvert_bruker nanbruker nanbruker_sge.qsub nanconvert_dicom nandicom"
@@ -113,11 +117,11 @@ jobs:
         config:
         - {
           name: "Ubuntu GCC", artifact: "nanconvert-linux.tar.gz",
-          os: ubuntu-16.04
+          os: ubuntu-18.04
         }
         - {
           name: "macOS", artifact: "nanconvert-macos.tar.gz",
-          os: macos-10.15
+          os: macos-11
         }
     needs: release
 
