@@ -1,17 +1,25 @@
 #!/bin/bash -eu
 
-# This script will bootstrap an initial configure & build.
-# On Linux and Mac a toolchain will be used which includes -march=native and
-# ASan/UBSan support. Other platforms will use the default toolchain.
+USAGE="Usage: $0 [options]
+
+Bootstraps the riesling build system (specifies the toolchain for CMake)
+
+Options:
+  -f FILE : Use a set of flags for dependency compilation. Currently provided
+            options are avx2, abi (for pre-C++11 ABI), and native
+"
 
 git submodule update --init --recursive
 
-PLATFORM="$( uname -s )"
-case "$PLATFORM" in
-  Linux*)  TOOLCHAIN="../cmake/x64-linux-native.toolchain.cmake";;
-  Darwin*) TOOLCHAIN="../cmake/x64-osx-native.toolchain.cmake";;
-  *)       TOOLCHAIN="../cmake/vcpkg/scripts/buildsystems/vcpkg.cmake";;
-esac
+FLAGS="base"
+while getopts "f:h" opt; do
+    case $opt in
+        f) export FLAGS="$OPTARG";;
+        h) echo "$USAGE"
+           return;;
+    esac
+done
+shift $((OPTIND - 1))
 
 # Use Ninja if available, otherwise CMake default
 if [ -x "$( command -v ninja )" ]; then
@@ -24,5 +32,6 @@ mkdir -p build
 cd build
 cmake -S ../ $GEN \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN"
+  -DCMAKE_TOOLCHAIN_FILE="cmake/toolchain.cmake" \
+  -DFLAGS_FILE="${FLAGS}"
 cmake --build .
