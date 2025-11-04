@@ -203,7 +203,10 @@ int main(int argc, char **argv) {
         auto const series_description =
             SanitiseString(Trim(GetMetaDataFromString<std::string>(meta, "0008|103e", "")));
 
-        auto const TR = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
+        auto TR = GetMetaDataFromString<float>(meta, "0018|0080", 1.0f);
+        if (TR == 0.f) { // What if the DICOM tag is junk
+            TR = 1.f;
+        }
         // Can't trust 0018|0050 for zero-filled images
         float const slice_thickness =
             slocs.size() > 1 ? std::abs(*slocs.rbegin() - *slocs.begin()) / (slocs.size() - 1) :
